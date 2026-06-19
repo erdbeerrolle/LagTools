@@ -150,7 +150,31 @@ LHiggs1 = Expand[
     + (1/2) covDHchi[mu] covDHchiCC[mu]
 ];
 
-LHiggs2 = ...;
+(*  Higgs potential  V = mu^2 (Phi^dag Phi) + lam (Phi^dag Phi)^2  with         *)
+(*    Phi = (phi+, (v + H + i chi)/Sqrt2),  v = 2 sw MW / ee,                   *)
+(*    lam = MH^2/(2 v^2),  mu^2 = -MH^2/2  (minimum condition).                  *)
+(*  L supset -V.  Below we keep only the interaction + Higgs-mass terms:         *)
+(*    - the tadpole (linear in H) cancels at the minimum,                        *)
+(*    - the gauge-boson masses come from LHiggs1 (vev shift in the covariant     *)
+(*      derivatives, e.g. the -I MW Wp term in covDphi),                         *)
+(*    - the Goldstone masses come from Lfix (the -MZ chi / -I MW phi pieces).   *)
+(*  Hence LHiggs2 contains ONLY: the Higgs mass, the cubic H(H^2+chi^2+2phi+phi-)*)
+(*  self-couplings, and the quartic (H^2+chi^2+2phi+phi-)^2.                     *)
+(*  Convention 1/v = ee/(2 sw MW)  ->  HHH vertex = -3 i ee MH^2/(2 sw MW). (✓) *)
+LHiggs2 =
+   (* --- Higgs mass --- *)
+   - (1/2) MH^2 HH^2
+   (* --- cubic:  -MH^2/(2v) H (H^2 + chi^2 + 2 phi+ phi-) --- *)
+   - (ee MH^2)/(4 sw MW) HH^3
+   - (ee MH^2)/(4 sw MW) HH chi^2
+   - (ee MH^2)/(2 sw MW) HH phi phim
+   (* --- quartic:  -MH^2/(8v^2) (H^2 + chi^2 + 2 phi+ phi-)^2 --- *)
+   - (ee^2 MH^2)/(32 sw^2 MW^2) HH^4
+   - (ee^2 MH^2)/(32 sw^2 MW^2) chi^4
+   - (ee^2 MH^2)/( 8 sw^2 MW^2) (phi phim)^2
+   - (ee^2 MH^2)/(16 sw^2 MW^2) HH^2 chi^2
+   - (ee^2 MH^2)/( 8 sw^2 MW^2) HH^2 phi phim
+   - (ee^2 MH^2)/( 8 sw^2 MW^2) chi^2 phi phim;
 
 LHiggs = LHiggs1 + LHiggs2;
 
@@ -179,7 +203,95 @@ Lghost = 0;   (* to do -- derive using gauge trafo *)
 L = Expand[Lferm + Lgauge + LHiggs + LYuk + Lfix + Lghost];
 
 (* ================================================================== *)
-(*  5.  Example: extract Feynman rules                               *)
+(*  5.  Renormalization (OS scheme, eqs. 98-99 of ref.)              *)
+(* ================================================================== *)
+
+(*  Counterterm symbols (all real in OS scheme)                       *)
+Scan[(# /: Conjugate[#] := #) &, {
+   dZW,                          (* delta Z for W+/-                 *)
+   dZZZ, dZZA, dZAZ, dZAA,      (* Z/A 2x2 mixing matrix            *)
+   dZH,                          (* delta Z for Higgs H              *)
+   dZeL, dZeR,                   (* delta Z for electron (L,R)       *)
+   dZnuL,                        (* delta Z for neutrino (L only)    *)
+   dZe,                          (* charge renorm: e0 = (1+dZe) e    *)
+   dMW2, dMZ2, dMH2, dme        (* mass counterterms                 *)
+}];
+
+(*  Typesetting for counterterm symbols                               *)
+MakeBoxes[dZW,   StandardForm] := SubscriptBox["\[Delta]Z", "W"];
+MakeBoxes[dZZZ,  StandardForm] := SubscriptBox["\[Delta]Z", "ZZ"];
+MakeBoxes[dZZA,  StandardForm] := SubscriptBox["\[Delta]Z", "Z\[Gamma]"];
+MakeBoxes[dZAZ,  StandardForm] := SubscriptBox["\[Delta]Z", "\[Gamma]Z"];
+MakeBoxes[dZAA,  StandardForm] := SubscriptBox["\[Delta]Z", "\[Gamma]\[Gamma]"];
+MakeBoxes[dZH,   StandardForm] := SubscriptBox["\[Delta]Z", "H"];
+MakeBoxes[dZeL,  StandardForm] := SubsuperscriptBox["\[Delta]Z", "L", "e"];
+MakeBoxes[dZeR,  StandardForm] := SubsuperscriptBox["\[Delta]Z", "R", "e"];
+MakeBoxes[dZnuL, StandardForm] := SubsuperscriptBox["\[Delta]Z", "L", "\[Nu]"];
+MakeBoxes[dZe,   StandardForm] := SubscriptBox["\[Delta]Z", "e"];
+MakeBoxes[dMW2,  StandardForm] := SubscriptBox["\[Delta]M", "W"]^2;
+MakeBoxes[dMZ2,  StandardForm] := SubscriptBox["\[Delta]M", "Z"]^2;
+MakeBoxes[dMH2,  StandardForm] := SubscriptBox["\[Delta]M", "H"]^2;
+MakeBoxes[dme,   StandardForm] := SubscriptBox["\[Delta]m", "e"];
+
+(*  ----- Field renormalization rules (eq. 99) -----                  *)
+(*                                                                     *)
+(*  Apply with:   L /. renormFields                                    *)
+(*                                                                     *)
+(*  W+/-:    W0 = (1 + 1/2 dZW) W                                     *)
+(*  Z / A:   2x2 mixing matrix (eq. 99b)                              *)
+(*             Z0 = (1 + 1/2 dZZZ) Z + (1/2 dZZA) A                  *)
+(*             A0 = (1/2 dZAZ) Z + (1 + 1/2 dZAA) A                  *)
+(*  Higgs:   H0 = (1 + 1/2 dZH) H                                     *)
+(*  Goldstone: same Z factors as their gauge partners ('t Hooft gauge) *)
+(*             phi0 = (1 + 1/2 dZW)  phi,  phim0 = (1 + 1/2 dZW) phim*)
+(*             chi0 = (1 + 1/2 dZZZ) chi                              *)
+(*  Fermions: via renorm[f, dZL/2, dZR/2] from LagTools               *)
+(*             el0 = (1 + 1/2 dZeL) PL el + (1 + 1/2 dZeR) PR el     *)
+(*             nu0 = (1 + 1/2 dZnuL) PL nu    (massless: no R)        *)
+
+renormFields = Flatten[{
+   renormBoson[Wp,   dZW],
+   renormBoson[Wm,   dZW],
+   renormMix[Zb, AA, dZZZ, dZZA, dZAZ, dZAA],
+   renormBoson[HH,   dZH],
+   renormBoson[phi,  dZW],          (* Goldstone charged: same Z as W  *)
+   renormBoson[phim, dZW],
+   renormBoson[chi,  dZZZ],         (* Goldstone neutral: same Z as Z  *)
+   renorm[el, dZeL/2, dZeR/2],
+   renorm[nu, dZnuL/2, 0]          (* massless: no right-handed comp.  *)
+}];
+
+(*  ----- Parameter renormalization (eq. 98) -----                    *)
+(*                                                                     *)
+(*  Apply with:   L /. renormParams                                    *)
+(*                                                                     *)
+(*  Mass counterterms enter as  M0^2 = M^2 + dM^2; for fermions      *)
+(*  m0 = m + dm (linear).  Charge: e0 = (1 + dZe) e.                 *)
+(*  Note: MW^2 in WL is Power[MW,2], so the rule MW^2 -> MW^2 + dMW2 *)
+(*  must be applied before any expansion that keeps MW linear.        *)
+
+renormParams = {
+   ee   -> (1 + dZe) ee,
+   MW^2 -> MW^2 + dMW2,
+   MZ^2 -> MZ^2 + dMZ2,
+   MH^2 -> MH^2 + dMH2,
+   me   -> me + dme
+};
+
+(*  ----- Usage -----                                                  *)
+(*                                                                     *)
+(*  Full bare Lagrangian (one-loop order):                             *)
+(*    Lbare = L /. renormFields /. renormParams // Expand             *)
+(*                                                                     *)
+(*  Counterterm Lagrangian (terms linear in d...):                    *)
+(*    Lct = Lbare - L  (drop all d... * d... products by hand or with *)
+(*          a Select / Normal @* Series trick)                         *)
+(*                                                                     *)
+(*  Feynman rules for counterterm vertices follow from feynmanRule     *)
+(*  applied to Lct exactly as for tree-level vertices.                *)
+
+(* ================================================================== *)
+(*  6.  Example: extract Feynman rules                                *)
 (* ================================================================== *)
 
 (*  Photon-electron vertex  i e gamma^al                              *)

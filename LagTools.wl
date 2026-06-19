@@ -133,6 +133,27 @@ renorm[f_, zL_, zR_] := {
    f -> (1 + zL) PL ** f + (1 + zR) PR ** f,
    bar[f] -> (1 + Conjugate[zL]) bar[f] ** PR + (1 + Conjugate[zR]) bar[f] ** PL};
 
+(* ---- boson field renormalisation ---- *)
+(*  Diagonal: h_0 = (1 + dZ/2) h                                                   *)
+(*  Returns two rules so both indexed  h[idx]  and bare scalar  h  are covered.    *)
+(*  The indexed rule  h[idx___] :> ...  fires first (more specific),               *)
+(*  so the bare rule never incorrectly replaces a head position.                   *)
+(*  Apply with  expr /. renormBoson[h, dZ]  or include in a Flatten[{...}] list.  *)
+renormBoson[h_, dZ_] := {
+   h[idx___] :> (1 + dZ/2) h[idx],
+   h          :> (1 + dZ/2) h};
+
+(*  2×2 mixing renormalisation: (h1_0, h2_0) = Z^{1/2} (h1, h2), where            *)
+(*     h1_0 = (1 + dZ11/2) h1 + (dZ12/2) h2                                       *)
+(*     h2_0 = (dZ21/2) h1 + (1 + dZ22/2) h2                                       *)
+(*  Typical use: renormMix[Zb, AA, dZZZ, dZZA, dZAZ, dZAA]                        *)
+(*  Rules applied simultaneously by /. so mixing on the RHS is NOT re-expanded.   *)
+renormMix[h1_, h2_, dZ11_, dZ12_, dZ21_, dZ22_] := {
+   h1[idx___] :> (1 + dZ11/2) h1[idx] + (dZ12/2) h2[idx],
+   h2[idx___] :> (dZ21/2) h1[idx] + (1 + dZ22/2) h2[idx],
+   h1          :> (1 + dZ11/2) h1 + (dZ12/2) h2,
+   h2          :> (dZ21/2) h1 + (1 + dZ22/2) h2};
+
 (* ---- functional derivative ---- *)
 fdiff[lg_, a_Plus] := fdiff[lg, #] & /@ a;
 fdiff[lg_, c_ x_] := c fdiff[lg, x] /; scalarQ[c];
