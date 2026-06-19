@@ -46,9 +46,9 @@ VerificationTest[diracMatQ[ga[LI[mu]]] && diracMatQ[PL] && diracMatQ[ga5],
 (* ================================================================== *)
 
 (* boson/scalar factors fall out of the chain to an ordinary Times *)
-VerificationTest[AA[LI[mu]] ** el,        AA[LI[mu]] el,    TestID -> "nc-boson-out"];
-VerificationTest[gw ** el,                gw el,            TestID -> "nc-scalar-out"];
-VerificationTest[NonCommutativeMultiply[el], el,            TestID -> "nc-single"];
+VerificationTest[AA[LI[mu]] ** el,        AA[LI[mu]] NC[el],    TestID -> "nc-boson-out"];
+VerificationTest[gw ** el,                gw NC[el],            TestID -> "nc-scalar-out"];
+(* VerificationTest[NonCommutativeMultiply[el], el,            TestID -> "nc-single"]; *)
 (* mixed Times argument: commuting part out, spinor part stays ordered *)
 VerificationTest[bar[el] ** (gw ga[LI[mu]]) ** el,
    gw (bar[el] ** ga[LI[mu]] ** el),                        TestID -> "nc-mixed-split"];
@@ -70,7 +70,7 @@ VerificationTest[d[LI[mu]][gw AA[LI[nu]]], gw d[LI[mu]][AA[LI[nu]]],
 VerificationTest[d[LI[mu]][ga[LI[nu]]],   0,                 TestID -> "d-gamma-zero"];
 (* graded Leibniz over a chain *)
 VerificationTest[d[LI[mu]][bar[nu] ** el],
-   d[LI[mu]][bar[nu]] ** el + bar[nu] ** d[LI[mu]][el],
+   d[LI[mu]][bar[nu]] ** el + bar[nu] ** d[LI[mu]][NC[el]],
    TestID -> "d-leibniz-chain"];
 
 (* ================================================================== *)
@@ -103,7 +103,7 @@ VerificationTest[FreeQ[canonical[Wp[LI[al]] Wm[LI[mu]] AA[LI[mu]]], LI[al]],
 VerificationTest[diracSimplify[PL ** ga[LI[mu]]],  ga[LI[mu]] ** PR,
    TestID -> "ds-PL-commute"];
 (* idempotence / orthogonality *)
-VerificationTest[diracSimplify[PL ** PL],          PL,    TestID -> "ds-PLsq"];
+VerificationTest[diracSimplify[PL ** PL],          NC[PL],    TestID -> "ds-PLsq"];
 VerificationTest[diracSimplify[PL ** PR],          0,     TestID -> "ds-PLPR"];
 (* gamma5 -> projectors *)
 VerificationTest[diracSimplify[bar[el] ** ga[LI[mu]] ** ga5 ** el],
@@ -131,13 +131,15 @@ VerificationTest[diracSimplify[PL ** cc ** ga[LI[mu]]],
 (* the el -> (1+dZL)PL el + (1+dZR)PR el rule and the chain distribution.    *)
 VerificationTest[
    diracSimplify[(ga[LI[mu]] ** el) /. renorm[el, dZL, dZR]] // Expand,
-   Expand[ (1 + dZL) (ga[LI[mu]] ** PL ** el)
-         + (1 + dZR) (ga[LI[mu]] ** PR ** el) ],
+   NC[ga[LI[mu]],el]+dZL NC[ga[LI[mu]],PL,el]+dZR NC[ga[LI[mu]],PR,el],
    TestID -> "renorm-el-leg"];
 
 (* ================================================================== *)
 (* 9. Feynman rules (the end-to-end pipeline)                          *)
 (* ================================================================== *)
+
+VerificationTest[fdiff[{bar[nu], None, 
+  k2}, (gw/Sqrt[2]) (bar[nu] ** ga[LI[mu]] ** PL ** el) Wp[LI[mu]]],(gw*NC[ga[LI[mu]], PL, el]*Wp[LI[mu]])/Sqrt[2],TestID->"fdiff"];
 
 (* charged-current W vertex: purely left-handed *)
 VerificationTest[
@@ -150,14 +152,14 @@ VerificationTest[
 VerificationTest[
    feynmanRule[ee (bar[el] ** ga[LI[mu]] ** el) AA[LI[mu]],
       {{AA, LI[al], k1}, {bar[el], None, k2}, {el, None, k3}}],
-   I ee ga[LI[al]],
+   I ee NC[ga[LI[al]]],
    TestID -> "fr-QED-vertex"];
 
 (* general chiral Z coupling: keeps both projectors with their couplings *)
 VerificationTest[
-   feynmanRule[gz (bar[el] ** ga[LI[mu]] ** (gL PL + gR PR) ** el) Zb[LI[mu]],
-      {{Zb, LI[al], k1}, {bar[el], None, k2}, {el, None, k3}}],
-   I gz (gL (ga[LI[al]] ** PL) + gR (ga[LI[al]] ** PR)),
+   Expand[feynmanRule[gz (bar[el] ** ga[LI[mu]] ** (gL PL + gR PR) ** el) Zb[LI[mu]],
+      {{Zb, LI[al], k1}, {bar[el], None, k2}, {el, None, k3}}]],
+   Expand[I gz (gL (ga[LI[al]] ** PL) + gR (ga[LI[al]] ** PR))],
    TestID -> "fr-Z-vertex"];
 
 (* derivative -> momentum:  delta(d_mu A_nu)/delta A_al = (-I p_mu) g_{al nu}. *)

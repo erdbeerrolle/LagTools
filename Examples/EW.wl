@@ -1,4 +1,5 @@
 (* ::Package:: *)
+
 (* ---------------------------------------------------------------------- *)
 (*  SM electroweak Lagrangian                                             *)
 (*  One lepton generation: e, nu_e.  No quarks.                           *)
@@ -124,7 +125,7 @@ covDHchiCC[mu_] :=
 (*  4.  Lagrangian                                                    *)
 (* ================================================================== *)
 
-(* ---- 4a. Fermion sector (✓) ---- *)
+(* ---- 4a. Fermion sector (\[Checkmark]) ---- *)
 Lferm = Expand[
    (* covaraint derivative contains neutral-current couplings *)
    I bar[nu] ** ga[LI[mu]] ** covDferm[mu, 0,  I3wnu][nu]
@@ -136,7 +137,7 @@ Lferm = Expand[
  - me bar[el] ** el
 ];
 
-(* ---- 4b. Gauge sector (✓) ---- *)
+(* ---- 4b. Gauge sector (\[Checkmark]) ---- *)
 
 LgaugeA  = -(1/4) FA[mu, nu] FA[mu, nu];
 LgaugeZ  = -(1/4) FZ[mu, nu] FZ[mu, nu];
@@ -160,7 +161,7 @@ LHiggs1 = Expand[
 (*    - the Goldstone masses come from Lfix (the -MZ chi / -I MW phi pieces).   *)
 (*  Hence LHiggs2 contains ONLY: the Higgs mass, the cubic H(H^2+chi^2+2phi+phi-)*)
 (*  self-couplings, and the quartic (H^2+chi^2+2phi+phi-)^2.                     *)
-(*  Convention 1/v = ee/(2 sw MW)  ->  HHH vertex = -3 i ee MH^2/(2 sw MW). (✓) *)
+(*  Convention 1/v = ee/(2 sw MW)  ->  HHH vertex = -3 i ee MH^2/(2 sw MW). (\[Checkmark]) *)
 LHiggs2 =
    (* --- Higgs mass --- *)
    - (1/2) MH^2 HH^2
@@ -178,13 +179,13 @@ LHiggs2 =
 
 LHiggs = LHiggs1 + LHiggs2;
 
-(* ---- 4d. Yukawa coupling (✓) ---- *)
+(* ---- 4d. Yukawa coupling (\[Checkmark]) ---- *)
 LYuk = -(ee me / (Sqrt[2] sw MW)) (
    bar[el] ** el HH
    - 2 I3we I bar[el] ** ga5 ** el chi    
 );
 
-(* ---- 4e. Gauge-fixing Lagrangian ('t Hooft-Feynman, xi=1) (✓) ---- *)
+(* ---- 4e. Gauge-fixing Lagrangian ('t Hooft-Feynman, xi=1) (\[Checkmark]) ---- *)
 CA[mu_]  := d[LI[mu]][AA[LI[mu]]];
 CZ[mu_]  := d[LI[mu]][Zb[LI[mu]]] - MZ chi;
 CWp[mu_] := d[LI[mu]][Wp[LI[mu]]] - I MW phi;
