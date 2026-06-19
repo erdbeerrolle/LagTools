@@ -269,9 +269,20 @@ renormFields = Flatten[{
 (*  m0 = m + dm (linear).  Charge: e0 = (1 + dZe) e.                 *)
 (*  Note: MW^2 in WL is Power[MW,2], so the rule MW^2 -> MW^2 + dMW2 *)
 (*  must be applied before any expansion that keeps MW linear.        *)
+(*                                                                     *)
+(*  The weak mixing angle is NOT an independent counterterm in the OS  *)
+(*  scheme: cw = MW/MZ and sw^2 = 1 - cw^2, so                        *)
+(*    d cw / cw =  1/2  (dMW2/MW^2 - dMZ2/MZ^2)                       *)
+(*    d sw / sw = -cw^2/(2 sw^2) (dMW2/MW^2 - dMZ2/MZ^2)              *)
+(*  These are applied simultaneously with the mass rules: the MW^2,    *)
+(*  MZ^2 appearing inside the sw/cw replacements stay tree-level       *)
+(*  (RHS of /. is not re-scanned), which is exactly the first-order    *)
+(*  counterterm we want.                                               *)
 
 renormParams = {
    ee   -> (1 + dZe) ee,
+   sw   -> sw (1 - (cw^2/(2 sw^2)) (dMW2/MW^2 - dMZ2/MZ^2)),
+   cw   -> cw (1 + (1/2)            (dMW2/MW^2 - dMZ2/MZ^2)),
    MW^2 -> MW^2 + dMW2,
    MZ^2 -> MZ^2 + dMZ2,
    MH^2 -> MH^2 + dMH2,
