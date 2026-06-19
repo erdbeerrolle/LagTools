@@ -112,13 +112,13 @@ covDHchi[mu_] :=
    d[LI[mu]][(HH + I chi)]
    - I (ee/sw) Wm[LI[mu]] phi
    + I MZ Zb[LI[mu]]
-   + I (ee/(2 sw cw)) Zb[LI[mu]] (H + I chi);
+   + I (ee/(2 sw cw)) Zb[LI[mu]] (HH + I chi);
 
 covDHchiCC[mu_] :=
    d[LI[mu]][(HH - I chi)]
    + I (ee/sw) Wp[LI[mu]] phim
    - I MZ Zb[LI[mu]]
-   - I (ee/(2 sw cw)) Zb[LI[mu]] (H - I chi);
+   - I (ee/(2 sw cw)) Zb[LI[mu]] (HH - I chi);
 
 (* ================================================================== *)
 (*  4.  Lagrangian                                                    *)
