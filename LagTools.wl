@@ -11,12 +11,15 @@
 $bosons      = {};
 $fermions    = {};
 $grassmann   = {};
+$massless    = {};     (* fermions with no right-handed component: PR**f = 0 *)
 $diracMat    = {ga, ga5, PL, PR};
-$displayName = <||>;    (* head -> label box/string used in MakeBoxes *)
+$displayName = <||>;   (* head -> label box/string used in MakeBoxes *)
 
 DeclareBoson[h_]          := (AppendTo[$bosons,    h]; h);
 DeclareFermion[f_]        := (AppendTo[$fermions,  f]; f);
 DeclareGrassmann[f_]      := (AppendTo[$grassmann, f]; f);
+(* DeclareMassless[f]: declare f purely left-handed, so PR**f = 0 and bar[f]**PL = 0 *)
+DeclareMassless[f_]       := (AppendTo[$massless,  f]);
 DeclareBoson[h_,     lbl_] := (DeclareBoson[h];     $displayName[h] = lbl; h);
 DeclareFermion[f_,   lbl_] := (DeclareFermion[f];   $displayName[f] = lbl; f);
 DeclareGrassmann[f_, lbl_] := (DeclareGrassmann[f]; $displayName[f] = lbl; f);
@@ -95,7 +98,10 @@ canonical[e_] := With[{x = Expand[e]},
 (*  (2) move ghost fields to the left past dirac matrices                       *)
 (*  (3) move projectors right past gammas and collapse products:                *)
 (*        P_{L,R} gamma^mu = gamma^mu P_{R,L} ,  P^2 = P ,  P_L P_R = 0         *)
-(*  (4) completeness in a sum:  c X P_L Y + c X P_R Y -> c X Y  (P_L+P_R=1)     *)
+(*  (4) completeness in a sum:  c X P_L Y + c X P_R Y -> c X Y  (P_L+P_R=1)    *)
+(*  (5) massless chirality (DeclareMassless[f]):                                 *)
+(*        PR ** f = 0 ,   bar[f] ** PL = 0                                       *)
+(*     applied AFTER (3) so projectors are already in canonical right position  *)
 diracSimplify[e_] := Module[{x},
    x = e /. ga5 -> PR - PL;
    x = x //. NonCommutativeMultiply[a___, m_, f_, b___] /;
@@ -113,6 +119,10 @@ diracSimplify[e_] := Module[{x},
                  c_. NonCommutativeMultiply[gg___, PR, hh___], v___] :>
          Plus[u, v, c NonCommutativeMultiply[gg, hh]],
       Plus[u___, c_. PL, c_. PR, v___] :> Plus[u, v, c]};
+   If[$massless =!= {},
+      x = x //. {
+         NonCommutativeMultiply[a___, PR, f_, b___]    /; MemberQ[$massless, f] :> 0,
+         NonCommutativeMultiply[a___, bar[f_], PL, b___] /; MemberQ[$massless, f] :> 0}];
    x];
 
 (* ---- chiral field renormalisation ---- *)

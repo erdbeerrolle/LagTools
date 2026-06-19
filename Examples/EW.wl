@@ -32,7 +32,7 @@ DeclareBoson[chi,  "\[Chi]"];                             (* neutral Goldstone *
 
 (* ---- Leptons: one generation ---- *)
 DeclareFermion[el, "e"];
-DeclareFermion[nu, SubscriptBox["\[Nu]", "e"]];
+DeclareFermion[nu, SubscriptBox["\[Nu]", "e"]];   (* massless: DeclareMassless called in §2 *)
 
 (* ---- Faddeev-Popov ghosts: one u^a / ubar^a per gauge boson ---- *)
 (*  Declared with DeclareGrassmann (Grassmann-odd, no Dirac index).  *)
@@ -50,20 +50,34 @@ DeclareGrassmann[uba, SuperscriptBox[OverscriptBox["u", "\[Macron]"], "A"]];
 (*  2.  Parameters                                                     *)
 (* ================================================================== *)
 
-(*  All couplings and masses are declared as real symbols.            *)
-Scan[(# /: Conjugate[#] := #) &,
-   {ee, sw, cw, MW, MZ, MH, me}];
+(*  Gauge couplings, masses: all real *)
+Scan[(# /: Conjugate[#] := #) &, {ee, sw, cw, MW, MZ, MH, me}];
 
-(*  Identities (not enforced automatically; use /. to simplify):     *)
-(*    sw^2 + cw^2 = 1                                                 *)
-(*    MW = cw MZ                                                       *)
-(*    ee = sw cw gz ,   v = 2 sw MW / ee                              *)
+(*  Fermion quantum numbers: weak isospin I3w and electric charge Q.  *)
+(*  Declared as independent real symbols; set numerical values by     *)
+(*  substitution if needed (e.g. /. {I3we -> -1/2, Qe -> -1}).       *)
+Scan[(# /: Conjugate[#] := #) &, {I3we, Qe, I3wnu, Qnu}];
 
-(*  Fermion couplings to Z:  gLf = I3w - Qf sw^2,  gRf = -Qf sw^2  *)
-(*    Electron:  I3w = -1/2, Qf = -1                                  *)
-(*    Neutrino:  I3w = +1/2, Qf =  0  (massless in this file)        *)
-gLe  = sw^2 - 1/2;    gRe  = sw^2;
-gLnu = 1/2;            gRnu = 0;
+(*  NC couplings derived from quantum numbers:  gLf = I3wf - Qf sw^2 *)
+gLe  = I3we  - Qe  sw^2;    gRe  = -Qe  sw^2;
+gLnu = I3wnu - Qnu sw^2;    gRnu = -Qnu sw^2;
+
+(*  Neutrino: massless left-handed fermion -> PR ** nu = 0            *)
+(*            (equivalent: no right-handed neutrino in this model)     *)
+DeclareMassless[nu];
+
+(*  Display names for quantum number symbols                          *)
+MakeBoxes[I3we,  StandardForm] := SubsuperscriptBox["I", "3", "e"];
+MakeBoxes[I3wnu, StandardForm] := SubsuperscriptBox["I", "3", "\[Nu]"];
+MakeBoxes[Qe,    StandardForm] := SubscriptBox["Q", "e"];
+MakeBoxes[Qnu,   StandardForm] := SubscriptBox["Q", "\[Nu]"];
+MakeBoxes[gLe,   StandardForm] := SubsuperscriptBox["g", "L", "e"];
+MakeBoxes[gRe,   StandardForm] := SubsuperscriptBox["g", "R", "e"];
+MakeBoxes[gLnu,  StandardForm] := SubsuperscriptBox["g", "L", "\[Nu]"];
+MakeBoxes[gRnu,  StandardForm] := SubsuperscriptBox["g", "R", "\[Nu]"];
+
+(*  Identities (not enforced automatically; substitute as needed):    *)
+(*    sw^2 + cw^2 = 1 ,  MW = cw MZ ,  v = Sqrt[2] sw MW / ee       *)
 
 (* ================================================================== *)
 (*  3.  Covariant derivatives and field strengths                     *)
