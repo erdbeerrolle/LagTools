@@ -72,7 +72,7 @@ gR[Q] := -Q  sw^2;
 covDferm[mu_, Qf_, Iw3f_][f_] :=
    d[LI[mu]][f]
    - I ee Qf AA[LI[mu]] f
-   - I (ee/(sw cw)) (gL[I3wf,Qf] PL + gR[Qf] PR) ** (Zb[LI[mu]] f);
+   - I (ee/(sw cw)) (gL[I3wf,Qf] PL + gR[Qf] PR) ** f Zb[LI[mu]];
 
 (*  Non-abelian field strengths in the mass-eigenstate basis.         *)
 FA[mu_, nu_] :=
@@ -85,47 +85,46 @@ FZ[mu_, nu_] :=
    
 FWp[mu_, nu_] :=
    d[LI[mu]][Wp[LI[nu]]] - d[LI[nu]][Wp[LI[mu]]]
-   - I ee (AA[LI[mu]] Wp[LI[nu]] - Wp[LI[mu]] AA[LI[nu]])
-   + I ee (cw/sw) (Zb[LI[mu]] Wp[LI[nu]] - Wp[LI[mu]] Zb[LI[nu]]);
+   - I ee ( Wp[LI[mu]] AA[LI[nu]] - AA[LI[mu]] Wp[LI[nu]])
+   + I ee (cw/sw) (Wp[LI[mu]] Zb[LI[nu]] - Zb[LI[mu]] Wp[LI[nu]]);
 
 FWm[mu_, nu_] :=
    d[LI[mu]][Wm[LI[nu]]] - d[LI[nu]][Wm[LI[mu]]]
-   + I ee (AA[LI[mu]] Wm[LI[nu]] - Wm[LI[mu]] AA[LI[nu]])
-   - I ee (cw/sw) (Zb[LI[mu]] Wm[LI[nu]] - Wm[LI[mu]] Zb[LI[nu]]);
+   + I ee (Wm[LI[mu]] AA[LI[nu]] - AA[LI[mu]] Wm[LI[nu]])
+   - I ee (cw/sw) (Wm[LI[mu]] Zb[LI[nu]] - Zb[LI[mu]] Wm[LI[nu]]);
 
-(*  Helper: gauge-kinetic term from a field strength.                 *)
-gaugeKin[F_] := -(1/4) g[LI[mu], LI[rh]] g[LI[nu], LI[si]]
-                        F[mu, nu] F[rh, si];
-
-(*  Higgs-sector covariant derivative (acts on the complex scalar     *)
-(*  doublet; written here in terms of the mass-eigenstate fields).    *)
+(*  Higgs-sector covariant derivative (?) *)
 covDphi[mu_] :=
    d[LI[mu]][phi]
-   - I ee AA[LI[mu]] phi
-   + I ee (cw^2 - sw^2)/(2 sw cw) Zb[LI[mu]] phi
-   + I (ee/(Sqrt[2] sw)) Wp[LI[mu]] (HH + I chi);
+   + I ee AA[LI[mu]] phi
+   - I ee (cw^2 - sw^2)/(2 sw cw) Zb[LI[mu]] phi
+   - I MW Wp[LI[mu]]
+   - I (ee/(2 sw)) Wp[LI[mu]] (HH + I chi);
 
 covDphim[mu_] :=
    d[LI[mu]][phim]
-   + I ee AA[LI[mu]] phim
-   - I ee (cw^2 - sw^2)/(2 sw cw) Zb[LI[mu]] phim
-   - I (ee/(Sqrt[2] sw)) Wm[LI[mu]] (HH - I chi);
+   - I ee AA[LI[mu]] phim
+   + I ee (cw^2 - sw^2)/(2 sw cw) Zb[LI[mu]] phim
+   + I MW Wm[LI[mu]]
+   + I (ee/(2 sw)) Wm[LI[mu]] (HH - I chi);
 
-covDH[mu_] :=
-   d[LI[mu]][HH]
-   - (ee/(2 sw cw)) Zb[LI[mu]] chi
-   - I (ee/(2 sw)) (Wp[LI[mu]] phim - Wm[LI[mu]] phi);
+covDHchi[mu_] :=
+   d[LI[mu]][(HH + I chi)]
+   - I (ee/sw) Wm[LI[mu]] phi
+   + I MZ Zb[LI[mu]]
+   + I (ee/(2 sw cw)) Zb[LI[mu]] (H + I chi);
 
-covDchi[mu_] :=
-   d[LI[mu]][chi]
-   + (ee/(2 sw cw)) Zb[LI[mu]] HH
-   + (ee/(2 sw)) (Wp[LI[mu]] phim + Wm[LI[mu]] phi);
+covDHchiCC[mu_] :=
+   d[LI[mu]][(HH - I chi)]
+   + I (ee/sw) Wp[LI[mu]] phim
+   - I MZ Zb[LI[mu]]
+   - I (ee/(2 sw cw)) Zb[LI[mu]] (H - I chi);
 
 (* ================================================================== *)
 (*  4.  Lagrangian                                                    *)
 (* ================================================================== *)
 
-(* ---- 4a. Fermion sector ---- *)
+(* ---- 4a. Fermion sector (✓) ---- *)
 Lferm = Expand[
    (* covaraint derivative contains neutral-current couplings *)
    I bar[nu] ** ga[LI[mu]] ** covDferm[mu, 0,  I3wnu][nu]
@@ -137,71 +136,44 @@ Lferm = Expand[
  - me bar[el] ** el
 ];
 
-(* ---- 4b. Gauge kinetic sector ---- *)
+(* ---- 4b. Gauge sector (✓) ---- *)
 
-LgaugeA  = gaugeKin[FA];
-LgaugeZ  = gaugeKin[FZ];
-LgaugeW  = -(1/2) g[LI[mu], LI[rh]] g[LI[nu], LI[si]]
-                  (FWp[mu, nu] FWm[rh, si] + FWm[mu, nu] FWp[rh, si]);
+LgaugeA  = -(1/4) FA[mu, nu] FA[mu, nu];
+LgaugeZ  = -(1/4) FZ[mu, nu] FZ[mu, nu];
+LgaugeW  = -(1/2) FWp[mu, nu] FWm[mu, nu];
 
 Lgauge = LgaugeA + LgaugeZ + LgaugeW;
 
-(* ---- 4c. Higgs / scalar sector ---- *)
-LHiggsKin = Expand[
-   g[LI[mu], LI[nu]] (
-      covDphim[mu] covDphi[nu]
-    + (1/2) covDH[mu] covDH[nu]
-    + (1/2) covDchi[mu] covDchi[nu])
+(* ---- 4c. Higgs sector ---- *)
+LHiggs1 = Expand[
+      covDphim[mu] covDphi[mu]
+    + (1/2) covDHchi[mu] covDHchiCC[mu]
 ];
 
-LHiggsMass = -(1/2) MH^2 HH^2
-             - MW^2 g[LI[mu], LI[nu]] Wp[LI[mu]] Wm[LI[nu]]
-             - (1/2) MZ^2 g[LI[mu], LI[nu]] Zb[LI[mu]] Zb[LI[nu]]
-             - MW^2 phi phim
-             - (1/2) MZ^2 chi^2;
+LHiggs2 = ...;
 
-LHiggs = LHiggsKin + LHiggsMass;
+LHiggs = LHiggs1 + LHiggs2;
 
-(* ---- 4d. Yukawa coupling ---- *)
+(* ---- 4d. Yukawa coupling (✓) ---- *)
 LYuk = -(ee me / (Sqrt[2] sw MW)) (
    bar[el] ** el HH
-   + I bar[el] ** ga5 ** el chi     (* pseudoscalar Yukawa from chi *)
+   - 2 I3we I bar[el] ** ga5 ** el chi    
 );
 
-(* ---- 4e. Gauge-fixing Lagrangian ('t Hooft-Feynman, xi=1) ---- *)
-(*  The gauge-fixing terms cancel the mixed  V_mu d^mu Goldstone   *)
-(*  propagator entries from LHiggsKin.                             *)
+(* ---- 4e. Gauge-fixing Lagrangian ('t Hooft-Feynman, xi=1) (✓) ---- *)
 CA[mu_]  := d[LI[mu]][AA[LI[mu]]];
 CZ[mu_]  := d[LI[mu]][Zb[LI[mu]]] - MZ chi;
 CWp[mu_] := d[LI[mu]][Wp[LI[mu]]] - I MW phi;
 CWm[mu_] := d[LI[mu]][Wm[LI[mu]]] + I MW phim;
 
 Lfix = Expand[
-   -(1/2) g[LI[a], LI[b]] (d[LI[a]][AA[LI[b]]]) (d[LI[a]][AA[LI[b]]])
-   -(1/2) (g[LI[a], LI[b]] d[LI[a]][Zb[LI[b]]] - MZ chi)^2
-   -(g[LI[a], LI[b]] d[LI[a]][Wp[LI[b]]] - I MW phi) *
-    (g[LI[a], LI[b]] d[LI[a]][Wm[LI[b]]] + I MW phim)
+   -(1/2) CA[a] CA[b]
+   -(1/2) CZ[a] CZ[b]
+   -CWp[a] * CWm[b]
 ];
 
 (* ---- 4f. Faddeev-Popov ghost Lagrangian ---- *)
-(*  L_FP = ubar^a (-delta^{ab} d^2 - M^{ab}^2) u^b + interactions  *)
-(*  In 't Hooft-Feynman gauge the ghost kinetic terms and masses are:*)
-(*    ubar^+ (-d^2 - MW^2) u^+  +  ubar^- (-d^2 - MW^2) u^-         *)
-(*    ubar^Z (-d^2 - MZ^2) u^Z  +  ubar^A (-d^2) u^A                *)
-(*  Ghost interactions (gauge + Higgs) follow from the FP procedure  *)
-(*  L_FP = - int d^4y ubar^a(x) delta C^a / delta theta^b(y) u^b(y) *)
-(*  and are not written out here (extract vertices with feynmanRule). *)
-LghostKin = Expand[
-   g[LI[mu], LI[nu]] (
-      ubp d[LI[mu]][d[LI[nu]][up]]
-    + ubm d[LI[mu]][d[LI[nu]][um]]
-    + ubz d[LI[mu]][d[LI[nu]][uz]]
-    + uba d[LI[mu]][d[LI[nu]][ua]])
-   - MW^2 (ubp up + ubm um)
-   - MZ^2 (ubz uz)
-];
-
-Lghost = LghostKin;   (* add interaction terms from FP procedure as needed *)
+Lghost = 0;   (* to do -- derive using gauge trafo *)
 
 (* ---- Total Lagrangian ---- *)
 L = Expand[Lferm + Lgauge + LHiggs + LYuk + Lfix + Lghost];
