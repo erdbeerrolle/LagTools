@@ -1,0 +1,212 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\g}{g}
+\newcommand{\OP}{\mathrm{OP}}
+\newcommand{\tr}{\operatorname{tr}}
+\newcommand{\gm}[1]{\gamma^{#1}}
+\newcommand{\gfive}{\gamma_5}
+\newcommand{\code}[1]{\texttt{#1}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+\title{\textbf{LagTools} --- formula \& identity reference}
+\author{Core functionalities applied by the package}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-2em}
+
+This lists \emph{every} transformation rule the tool applies. Items marked
+\textbf{(C)} encode a sign/normalisation convention you may want to confirm.
+
+%==============================================================
+\section{Global conventions}
+\begin{itemize}[nosep]
+  \item Metric mostly-minus $(+,-,-,-)$; \textbf{all indices written down},
+        raising/lowering done by inserting $\g_{\mu\nu}$ explicitly.
+  \item Dimension $D\equiv\code{\$Dim}=4$.
+  \item All external momenta \textbf{incoming}; a field carries $e^{-ip\cdot x}$,
+        so on an external leg $\partial_\mu \to -i\,p_\mu$. \textbf{(C)}
+  \item Overall vertex factor $i$ (from $e^{iS}$). \textbf{(C)}
+  \item Fermions: \textbf{left} functional derivatives, legs applied in listed
+        order. \textbf{(C)}
+\end{itemize}
+
+%==============================================================
+\section{Predicates}
+For an expression $x$:
+\begin{align*}
+\text{\code{commutingQ}}(x) &\;=\; x \text{ is free of } \{\gm{\mu},\gfive,P_L,P_R,\text{declared fermion fields}\}
+   \text{ and } \mathrm{Head}(x)\neq\,\code{**}\\
+\text{\code{scalarQ}}(x) &\;=\; x \text{ is free of fields, indices, } \partial,\text{ and Dirac objects}
+\end{align*}
+\emph{Commuting} $=$ central in spinor space (a c-number / boson / metric /
+momentum). \emph{Scalar} $=$ a pure coefficient (coupling, mass, number).
+
+%==============================================================
+\section{Graded product \texorpdfstring{$\star$}{**} (Dirac chains, \code{NonCommutativeMultiply})}
+Associative and flat. Spinor indices are \textbf{implicit/positional}.
+\begin{align}
+A\star(B+C)\star D &= A\star B\star D + A\star C\star D &&\text{(multilinear)}\\
+A\star c\star B &= c\,(A\star B) &&\text{if \code{commutingQ}$(c)$ (pull central factors out)}\\
+A\star 1 \star B &= A\star B, \qquad (\,\star\,) = 1, \qquad (x) &= x &&\text{(identity / collapse)}
+\end{align}
+A mixed product argument $\,\prod_i u_i\,$ is split: the commuting $u_i$ factor out
+front, the rest stay ordered in the chain.
+
+%==============================================================
+\section{Linear container \texorpdfstring{$\OP$}{OP}}
+\begin{equation}
+\OP[0]=0,\qquad \OP[x+y]=\OP[x]+\OP[y],\qquad \OP[c\,x]=c\,\OP[x]\ \ (\text{\code{scalarQ}}(c)).
+\end{equation}
+
+%==============================================================
+\section{Derivative \texorpdfstring{$\partial_\mu \equiv$ \code{d[LI[mu]]}}{d}}
+Linear, kills constants, graded Leibniz over both products:
+\begin{align}
+\partial_\mu(c\,x) &= c\,\partial_\mu x \ \ (\text{\code{scalarQ}}(c)), \qquad \partial_\mu(\text{const})=0\\
+\partial_\mu(ab) &= (\partial_\mu a)\,b + a\,(\partial_\mu b)\\
+\partial_\mu(A\star B) &= (\partial_\mu A)\star B + A\star(\partial_\mu B)\\
+\partial_\mu\gm{\nu} &= \partial_\mu\gfive = \partial_\mu P_{L/R}
+   = \partial_\mu \g_{\alpha\beta} = \partial_\mu \delta_{ab} = 0
+\end{align}
+On a field $\partial_\mu\phi$ is left inert.
+
+%==============================================================
+\section{Metric, deltas, contraction}
+$\g_{\mu\nu}=\g_{\nu\mu}$ (symmetric), $\delta_{ab}=\delta_{ba}$, with traces
+\begin{equation}
+\g_{\mu}{}^{\mu}=D=4,\qquad \delta_{aa}=\tr\mathbb{1}=4 .
+\end{equation}
+\code{Contract} eats a repeated (dummy) index --- one appearing exactly once in
+the remaining factors:
+\begin{equation}
+\g_{\mu\nu}\,X^{\cdots\nu\cdots} = X^{\cdots\mu\cdots},\qquad
+\delta_{ab}\,X_{\cdots b\cdots} = X_{\cdots a\cdots}.
+\end{equation}
+
+%==============================================================
+\section{Index canonicalization}
+A label occurring \textbf{exactly twice} in a term is a \emph{dummy}
+(contracted); occurring \textbf{once} it is \emph{free}.
+\code{Canonicalize} renames the $k$ dummy labels to canonical names
+$\{\code{DUM}[1],\dots,\code{DUM}[k]\}$, choosing among all $k!$ relabellings the
+one giving the canonically smallest ordered form; free labels are preserved.
+Hence terms equal up to dummy relabelling and commuting-factor reordering
+collapse, e.g.
+\begin{equation}
+W^+_\mu W^-_\mu A_\nu A_\nu \;\equiv\; W^+_\nu W^-_\nu A_\mu A_\mu .
+\end{equation}
+
+%==============================================================
+\section{Functional derivative \& Feynman rules}
+For a leg $\{f,\xi,p\}$ (field $f$, open index $\xi$, incoming momentum $p$),
+$\dfrac{\delta}{\delta\phi}$ acts by:
+\begin{align}
+\frac{\delta}{\delta\phi}(\text{scalar}) &= 0, \qquad
+\frac{\delta}{\delta\phi}(ab) = \Big(\tfrac{\delta a}{\delta\phi}\Big)b + a\Big(\tfrac{\delta b}{\delta\phi}\Big) \\
+\frac{\delta}{\delta\phi}\,b^{n} &= n\,b^{n-1}\,\frac{\delta b}{\delta\phi} &&\text{(power)}\\
+\frac{\delta}{\delta\phi}\,\partial_\mu(\,\cdots) &= (-i\,p_\mu)\,\frac{\delta}{\delta\phi}(\cdots) &&\text{(derivative}\to\text{momentum)}\\
+\frac{\delta\,\phi(\text{idx})}{\delta\phi_\xi} &= \Delta(\xi,\text{idx}) &&\text{(target field --- same field $\phi$ as the leg)}
+\end{align}
+with the leg delta $\Delta$ tying the external index $\xi$ to the field's own index:
+\begin{equation}
+\Delta(\varnothing,\varnothing)=1,\qquad
+\Delta(\xi^{\mathrm{L}},\nu)=\g_{\xi\nu},\qquad
+\Delta(\xi^{\mathrm{G/C/F}},a)=\delta_{\xi a}.
+\end{equation}
+A Dirac fermion carries its spinor index \emph{implicitly} (positional in the
+chain): differentiating it simply removes the field, $\Delta=1$, leaving the
+open Dirac matrix. (An explicitly-indexed spinor field would instead give
+$\delta_{\xi a}$.)
+Over a Dirac chain the Leibniz sum carries the Grassmann sign
+\begin{equation}
+\text{sign} = (-1)^{\#\{\text{Grassmann-odd factors to the left of the differentiated one}\}}\quad(\text{fermionic }\phi).
+\end{equation}
+Then
+\begin{align}
+\code{FunctionalD}[L,\{l_1,\dots,l_n\}] &= \Big[\textstyle\prod_i \tfrac{\delta}{\delta\phi_{l_i}}\,L\Big]_{\text{all fields}\to 0},\\
+\code{FeynmanRule}[L,\{l_i\}] &= i\;\code{Canonicalize}\!\big[\code{Contract}[\,\code{FunctionalD}[L,\{l_i\}]\,]\big].
+\end{align}
+(Identical-leg symmetry factors arise automatically from Leibniz.)
+
+\paragraph{Derivation of $\partial_\mu\to-i\,p_\mu$ (eq.~14), in two steps.}
+The code works directly in momentum space; physically this is a position-space
+functional derivative followed by a Fourier transform of the external leg.
+Write the relevant term as $S\supset\int d^4x\;C^\mu(x)\,\partial_\mu\phi(x)$,
+with $C^\mu$ everything else, and differentiate w.r.t.\ the field at the
+external point $y$.
+
+\emph{Step 1 --- functional derivative (position space).}\quad
+Using $\delta\phi(x)/\delta\phi(y)=\delta^4(x-y)$,
+\begin{equation}
+\frac{\delta\,\partial_\mu\phi(x)}{\delta\phi(y)}=\partial_\mu^{(x)}\delta^4(x-y),
+\qquad\Rightarrow\qquad
+\frac{\delta S}{\delta\phi(y)}\supset\int d^4x\;C^\mu(x)\,\partial_\mu^{(x)}\delta^4(x-y).
+\end{equation}
+Still position space: the derivative now sits on a delta function, no momentum yet.
+
+\emph{Step 2 --- Fourier-transform the leg (incoming $p$).}\quad
+Multiply by $e^{-ip\cdot y}$, integrate over $y$, and integrate by parts using
+$\partial_\mu^{(x)}\delta^4(x-y)=-\partial_\mu^{(y)}\delta^4(x-y)$:
+\begin{equation}
+\int d^4y\;e^{-ip\cdot y}\,\partial_\mu^{(x)}\delta^4(x-y)
+=\int d^4y\,\big(\partial_\mu^{(y)}e^{-ip\cdot y}\big)\delta^4(x-y)
+=(-i\,p_\mu)\,e^{-ip\cdot x}.
+\end{equation}
+Hence one leg gives $\;\partial_\mu\phi\to(-i\,p_\mu)\,e^{-ip\cdot x}$. The
+$e^{-ip\cdot x}$ from all legs combine into
+$\int d^4x\,e^{-i(\sum_k p_k)\cdot x}=(2\pi)^4\delta^4(\sum_k p_k)$ (overall
+momentum conservation, stripped from the vertex), leaving exactly the factor
+$-i\,p_\mu$. \emph{Outgoing momenta or an $e^{+ip\cdot y}$ transform flip the
+sign --- the \textbf{(C)} on eq.~14.}
+
+%==============================================================
+\section{Dirac algebra}
+\textbf{Clifford basis.}\quad
+$\{\gm{\mu},\gm{\nu}\}=2\g^{\mu\nu}\mathbb{1},\quad \{\gfive,\gm{\mu}\}=0,\quad \gfive^2=1,\quad P_{L,R}=\tfrac12(1\mp\gfive).$
+
+\textbf{ExpandProjectors.}\quad
+$P_L\to\tfrac12(1-\gfive),\qquad P_R\to\tfrac12(1+\gfive).$
+
+\textbf{DiracSimplify} (applied to a fixed point):
+\begin{align}
+\gfive\gm{\mu} &= -\gm{\mu}\gfive, & \gfive\gfive &= 1,\\
+P_LP_L=P_L,\quad P_RP_R&=P_R, & P_LP_R=P_RP_L&=0,\\
+\gfive P_L=-P_L,\ \ \gfive P_R&=P_R, & P_L\gfive=-P_L,\ \ P_R\gfive&=P_R,
+\end{align}
+contraction identities ($D=\code{\$Dim}$):
+\begin{align}
+\gm{\mu}\gamma_\mu &= D\\
+\gm{\mu}\gm{\alpha}\gamma_\mu &= (2-D)\,\gm{\alpha}\\
+\gm{\mu}\gm{\alpha}\gm{\beta}\gamma_\mu &= 4\,\g^{\alpha\beta} - (4-D)\,\gm{\alpha}\gm{\beta}\\
+\gm{\mu}\gm{\alpha}\gm{\beta}\gm{\gamma}\gamma_\mu &= -2\,\gm{\gamma}\gm{\beta}\gm{\alpha} + (4-D)\,\gm{\alpha}\gm{\beta}\gm{\gamma}
+\end{align}
+
+\textbf{DiracTrace.}\quad Linear; central factors pulled out; $\tr(c\,\mathbb{1})=4c$.
+\begin{align}
+\tr\mathbb{1} &= 4, \qquad \tr(\text{odd \# of }\gamma)=0,\\
+\tr\!\big(\gm{\mu_1}\cdots\gm{\mu_n}\big) &= \sum_{j=2}^{n} (-1)^{j}\,\g^{\mu_1\mu_j}\;
+   \tr\!\big(\gm{\mu_2}\cdots\widehat{\gm{\mu_j}}\cdots\gm{\mu_n}\big),
+\end{align}
+e.g. $\tr(\gm\mu\gm\nu)=4\g^{\mu\nu}$ and
+$\tr(\gm\mu\gm\nu\gm\rho\gm\sigma)=4(\g^{\mu\nu}\g^{\rho\sigma}-\g^{\mu\rho}\g^{\nu\sigma}+\g^{\mu\sigma}\g^{\nu\rho})$.
+With one $\gfive$:
+\begin{equation}
+\tr(\gm{\mu_1}\cdots\gm{\mu_n}\gfive)=0\ \ (n<4\text{ or odd}),\qquad
+\tr(\gm\mu\gm\nu\gm\rho\gm\sigma\gfive)=-4i\,\epsilon^{\mu\nu\rho\sigma}\ \textbf{(C)},
+\end{equation}
+($n\geq6$ not yet implemented). When normal-ordering a chain, each $\gfive$
+contributes $(-1)^{\#\{\gamma\text{ to its right}\}}$ and $\gfive^{m}\to\gfive$ or $1$.
+
+\textbf{Levi-Civita.}\quad $\epsilon$ is totally antisymmetric:
+$\epsilon_{\cdots a \cdots a \cdots}=0$, and
+$\epsilon_{\pi(\mu\nu\rho\sigma)}=\operatorname{sgn}(\pi)\,\epsilon_{\mu\nu\rho\sigma}$.
+
+\end{document}
