@@ -58,10 +58,6 @@ Scan[(# /: Conjugate[#] := #) &, {ee, sw, cw, MW, MZ, MH, me}];
 (*  substitution if needed (e.g. /. {I3we -> -1/2, Qe -> -1}).       *)
 Scan[(# /: Conjugate[#] := #) &, {I3we, Qe, I3wnu, Qnu}];
 
-(*  NC couplings derived from quantum numbers:  gLf = I3wf - Qf sw^2 *)
-gLe  = I3we  - Qe  sw^2;    gRe  = -Qe  sw^2;
-gLnu = I3wnu - Qnu sw^2;    gRnu = -Qnu sw^2;
-
 (*  Neutrino: massless left-handed fermion -> PR ** nu = 0            *)
 (*            (equivalent: no right-handed neutrino in this model)     *)
 DeclareMassless[nu];
@@ -70,11 +66,6 @@ DeclareMassless[nu];
 MakeBoxes[I3we,  StandardForm] := SubsuperscriptBox["I", "3", "e"];
 MakeBoxes[I3wnu, StandardForm] := SubsuperscriptBox["I", "3", "\[Nu]"];
 MakeBoxes[Qe,    StandardForm] := SubscriptBox["Q", "e"];
-MakeBoxes[Qnu,   StandardForm] := SubscriptBox["Q", "\[Nu]"];
-MakeBoxes[gLe,   StandardForm] := SubsuperscriptBox["g", "L", "e"];
-MakeBoxes[gRe,   StandardForm] := SubsuperscriptBox["g", "R", "e"];
-MakeBoxes[gLnu,  StandardForm] := SubsuperscriptBox["g", "L", "\[Nu]"];
-MakeBoxes[gRnu,  StandardForm] := SubsuperscriptBox["g", "R", "\[Nu]"];
 
 (*  Identities (not enforced automatically; substitute as needed):    *)
 (*    sw^2 + cw^2 = 1 ,  MW = cw MZ ,  v = Sqrt[2] sw MW / ee       *)
@@ -83,14 +74,18 @@ MakeBoxes[gRnu,  StandardForm] := SubsuperscriptBox["g", "R", "\[Nu]"];
 (*  3.  Covariant derivatives and field strengths                     *)
 (* ================================================================== *)
 
+(*  NC couplings derived from quantum numbers                        *)
+gL[I3w,Q] := I3w  - Q  sw^2;    
+gR[Q] := -Q  sw^2;
+
 (*  covDferm[mu, f, Qf, gLf, gRf]  gives  D_mu f  for a fermion f   *)
 (*  with electric charge Qf and neutral-current couplings gLf, gRf.  *)
 (*  The W mixing term  (e/sqrt2 sw) W^pm_mu P_L (partner)  is off-   *)
 (*  diagonal in generation space and is added separately in Lferm.   *)
-covDferm[mu_, f_, Qf_, gLf_, gRf_] :=
+covDferm[mu_, Qf_, Iw3f_][f_] :=
    d[LI[mu]][f]
    - I ee Qf AA[LI[mu]] f
-   - I (ee/(sw cw)) (gLf PL + gRf PR) ** (Zb[LI[mu]] f);
+   - I (ee/(sw cw)) (gL[I3wf,Qf] PL + gR[Qf] PR) ** (Zb[LI[mu]] f);
 
 (*  Non-abelian field strengths in the mass-eigenstate basis.         *)
 (*  Each  F[mu,nu]  is an ordinary (commuting) expression in the      *)
@@ -168,8 +163,8 @@ covDchi[mu_] :=
 (*    (e/sqrt2 sw)(nubar gamma^mu PL e W+_mu + ebar gamma^mu PL nu W-_mu) *)
 
 Lferm = Expand[
-   I bar[nu] ** ga[LI[mu]] ** covDferm[mu, nu, 0,  gLnu, gRnu]
- + I bar[el] ** ga[LI[mu]] ** covDferm[mu, el, -1, gLe,  gRe]
+   I bar[nu] ** ga[LI[mu]] ** covDferm[mu, 0,  I3wnu][nu]
+ + I bar[el] ** ga[LI[mu]] ** covDferm[mu, Qe, I3we][el]
    (* charged current: W mixes nu <-> e *)
  + (ee/(Sqrt[2] sw)) bar[nu] ** ga[LI[mu]] ** PL ** el Wp[LI[mu]]
  + (ee/(Sqrt[2] sw)) bar[el] ** ga[LI[mu]] ** PL ** nu Wm[LI[mu]]
