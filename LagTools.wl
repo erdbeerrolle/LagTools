@@ -44,9 +44,6 @@ SetAttributes[g, Orderless];
 g[a_, a_] := 4;
 
 (* ---- graded noncommutative product **  (boson/scalar factors fall out) ---- *)
-(*   a ** (b+c) ** d  =  a**b**d + a**c**d            (multilinear)            *)
-(*   a ** c ** b      =  c (a ** b)   if c commuting   (pull c-number/boson out) *)
-(*   x**              =  x ,   ()** = 1               (single / empty chain)    *)
 Unprotect[NonCommutativeMultiply];
 NonCommutativeMultiply[x___, p_Plus, y___] := (NonCommutativeMultiply[x, #, y] &) /@ p;
 NonCommutativeMultiply[x___, Times[u__], y___] := (Times @@ Select[{u}, commutingQ]) *
@@ -58,15 +55,11 @@ NonCommutativeMultiply[] := 1;
 Protect[NonCommutativeMultiply];
 
 (* ---- Dirac conjugate bar: linear, antilinear in scalars ---- *)
-(*   bar[a+b] = bar[a]+bar[b] ,   bar[c psi] = Conjugate[c] bar[psi]          *)
-(* (declare real couplings via e.g.  gw /: Conjugate[gw] := gw )              *)
 bar[0] = 0;
 bar[a_Plus] := bar /@ a;
 bar[c_ x_] := Conjugate[c] bar[x] /; scalarQ[c];
 
 (* ---- derivative d_mu ---- *)
-(*   d_mu(a+b)=..., d_mu(c x)=c d_mu x (scalar c), d_mu(const)=0              *)
-(*   Leibniz over Times and ** ;  gamma's and metric are x-independent         *)
 d[mu_][a_Plus] := d[mu] /@ a;
 d[mu_][c_ x_] := c d[mu][x] /; scalarQ[c];
 d[mu_][c_] := 0 /; scalarQ[c];
@@ -122,7 +115,7 @@ diracSimplify[e_] := Module[{x},
       Plus[u___, c_. PL, c_. PR, v___] :> Plus[u, v, c]};
    x];
 
-(* ---- chiral field renormalisation (still in projectors) ---- *)
+(* ---- chiral field renormalisation ---- *)
 (*   psi -> (1+dZL) P_L psi + (1+dZR) P_R psi                                   *)
 (*   psibar -> (1+dZL*) psibar P_R + (1+dZR*) psibar P_L                        *)
 (* returns the substitution rules; apply with  L /. renorm[f, dZL, dZR] .       *)
@@ -130,28 +123,24 @@ renorm[f_, zL_, zR_] := {
    f -> (1 + zL) PL ** f + (1 + zR) PR ** f,
    bar[f] -> (1 + Conjugate[zL]) bar[f] ** PR + (1 + Conjugate[zR]) bar[f] ** PL};
 
-(* ---- functional derivative & Feynman rules ---- *)
-(* leg = {field, openIndex, momentum};  use None for a scalar / fermion         *)
-(* legDelta ties the leg's open index to the field's index (scalar -> 1):       *)
-legDelta[None, {}] := 1;
-legDelta[LI[a_], {LI[b_]}] := g[LI[a], LI[b]];
-
-(* delta/delta phi: linear; scalar coeff out; delta(scalar)=0 *)
+(* ---- functional derivative ---- *)
 fdiff[lg_, a_Plus] := fdiff[lg, #] & /@ a;
 fdiff[lg_, c_ x_] := c fdiff[lg, x] /; scalarQ[c];
 fdiff[lg_, c_] := 0 /; scalarQ[c];
 fdiff[lg_, Times[a_, b__]] := fdiff[lg, a] Times[b] + a fdiff[lg, Times[b]];
 fdiff[lg_, Power[b_, n_Integer?Positive]] := n b^(n - 1) fdiff[lg, b];
-(* a derivative on the leg field -> momentum:  delta(d_mu phi) = -I p_mu delta phi *)
+
+(* functional differentiation of field derivatives with transition to         *)
+(* momentum space                                                             *)
 fdiff[{f_, xi_, p_}, d[m_][z_]] := (-I p[m]) fdiff[{f, xi, p}, z];
-(* boson leg with indices: delta phi[idx] / delta phi_xi = legDelta[xi, {idx}] *)
-fdiff[{f_, xi_, p_}, f_[idx___]] := legDelta[xi, {idx}];
-(* bare field (scalar boson or fermion): x === f -> legDelta[xi, {}]            *)
-(* for fermions xi = None so legDelta[None,{}] = 1, removing the field from    *)
-(* the chain; for a scalar boson leg xi = None likewise.                        *)
-fdiff[{f_, xi_, p_}, x_] := legDelta[xi, {}] /; x === f && fieldQ[x];
-(* graded Leibniz over a chain.  sign per swap = (-1)^(|D| |X|): pick up        *)
-(* (-1)^(#odd factors to the left) only when the derivative itself is odd.       *)
+
+(* delta phi_LI1 / delta phi_LI2 *)
+fdiff[{f_, LI[a_], p_}, f_[LI[b_]] := g[LI[a], LI[b]];
+(* delta phi / delta phi *)
+fdiff[{f_Symbol, _, _}, f_Symbol] := 1 /; fieldQ[f];
+
+(* graded Leibniz over a chain. pick up (-1)^(#odd factors to the left)      *)
+(* when the derivative is odd.                                               *)
 fdiff[{f_, xi_, p_}, ch_NonCommutativeMultiply] := With[{q = List @@ ch},
    Sum[(If[oddQ[f], (-1)^Count[q[[1 ;; i - 1]], _?oddQ], 1]) *
        NonCommutativeMultiply[Sequence @@ q[[1 ;; i - 1]], fdiff[{f, xi, p}, q[[i]]],
@@ -159,10 +148,9 @@ fdiff[{f_, xi_, p_}, ch_NonCommutativeMultiply] := With[{q = List @@ ch},
 (* anything independent of the leg field -> 0 *)
 fdiff[{f_, _, _}, x_] := 0 /; FreeQ[x, f];
 
-(* set every remaining field to zero: only the fully-stripped monomials survive *)
-setZero[e_] := e /. x_ /; fieldQ[x] :> 0;
-
+(* ---- Feynman rules ---- *)
 (* differentiate wrt each leg in turn, then send the leftover fields to zero *)
+setZero[e_] := e /. x_ /; fieldQ[x] :> 0;
 functionalD[L_, legs_] := Module[{e = Expand[L]},
    Do[e = Expand[fdiff[lg, e]], {lg, legs}];
    Expand[setZero[e]]];
@@ -171,39 +159,18 @@ functionalD[L_, legs_] := Module[{e = Expand[L]},
 (* index-canonicalised *)
 feynmanRule[L_, legs_] := I canonical[diracSimplify[contract[functionalD[L, legs]]]];
 
-(* ================================================================== *)
+(* =================================================================== *)
 (*  Display formatting (notebook output)                               *)
-(*                                                                     *)
-(*  Fields get subscripted indices; derivatives show as ∂_μ.          *)
-(*  Pass a display label when declaring:                               *)
-(*    DeclareBoson[Wp, SuperscriptBox["W","+"]]                        *)
-(*    DeclareFermion[el, "e"]                                          *)
-(*  For simple strings, "e" or "W" are fine; for super/subscripts     *)
-(*  pass a box expression directly.                                    *)
-(*                                                                     *)
 (*  Canonical dummy indices are integers (1,2,...) and display as      *)
-(*  μ₁, μ₂, ...   Named indices use a Greek-name lookup:             *)
-(*    mu->μ, nu->ν, al/alpha->α, be/beta->β, rho->ρ,                 *)
-(*    si/sigma->σ, la/lam/lambda->λ, tau->τ, ka/kappa->κ             *)
-(*  Unknown names are displayed as-is.                                 *)
-(* ================================================================== *)
-
-$ltGreek = <|"mu"->"\[Mu]","nu"->"\[Nu]",
-             "al"->"\[Alpha]","alpha"->"\[Alpha]",
-             "be"->"\[Beta]", "beta"->"\[Beta]",
-             "rho"->"\[Rho]",
-             "si"->"\[Sigma]","sigma"->"\[Sigma]",
-             "la"->"\[Lambda]","lam"->"\[Lambda]","lambda"->"\[Lambda]",
-             "tau"->"\[Tau]",
-             "ka"->"\[Kappa]","kappa"->"\[Kappa]"|>;
+(*  μ₁, μ₂, ...                                                        *)
+(* =================================================================== *)
 
 (* Box for a field head: registered label or plain symbol name *)
 ltFieldBox[h_] := If[KeyExistsQ[$displayName, h], $displayName[h], SymbolName[h]];
 
 (* Box for a Lorentz index label: integer dummies -> mu_n, symbols -> Greek or name *)
 ltIdxBox[n_Integer] := SubscriptBox["\[Mu]", ToString[n]];
-ltIdxBox[s_Symbol]  := With[{nm = SymbolName[s]},
-   Lookup[$ltGreek, nm, nm]];
+ltIdxBox[s_Symbol]  := ltIdxBox[s_Symbol] := SymbolName[s];;
 
 (* LI wrapper disappears; only the index label is shown *)
 MakeBoxes[LI[x_], StandardForm] := ltIdxBox[x];
