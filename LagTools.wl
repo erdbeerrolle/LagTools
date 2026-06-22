@@ -1,25 +1,18 @@
 (* ::Package:: *)
 
-(* ::Package:: *)
-(* ------------------------------------------------------------------ *)
-(*  EW Lagrangian -> Feynman rules.                                   *)
-(*  Lorentz indices: LI[mu].                                          *)
-(*  Spinor indices implicit (positional in the noncommutative         *)
-(*  product **)                                                       *)
-(*  Metric (+,-,-,-), D=4                                             *)
-(*  all momenta incoming, d_mu -> -I p_mu.                            *)
-(* ------------------------------------------------------------------ *)
-
 (*---- Dirac matrices ----*)
-$diracMat={ga,ga5,PL,PR};
+$diracMat = {ga, ga5, PL, PR};
 diracMatQ[m_]:=MemberQ[$diracMat,m]||MemberQ[$diracMat,Head[m]];
+
+(* Index types: Lorentz index LI, gauge index GI, Flavour index FI *)
+$indices = {LI, GI, FI};
 
 (*---- Field declarations ----*)
 DeclareBoson[h_Symbol]    :=(bosonQ[h] = True;     h);
 DeclareFermion[f_Symbol]  :=(fermionQ[f] = True;   f);
 DeclareGrassmann[f_Symbol]:=(grassmannQ[f] = True; f);
 
-DeclareBoson[h_Symbol,    lbl_] :=(DeclareBoson[h];    Format[h] = lbl; h);
+DeclareBoson[h_Symbol,    lbl_]:=(DeclareBoson[h];    Format[h] = lbl; h);
 DeclareFermion[f_Symbol,  lbl_]:=(DeclareFermion[f];   Format[f] = lbl; f);
 DeclareGrassmann[f_Symbol,lbl_]:=(DeclareGrassmann[f]; Format[f] = lbl; f);
 
@@ -40,11 +33,16 @@ oddQ[x_]   := fermionQ[x] || grassmannQ[x];
 
 (*---- composite predicates with deep-scan ----*)
 commutingQ[x_] := FreeQ[x, _?oddQ | _?diracMatQ];
-scalarQ[x_]    := FreeQ[x, _?fieldQ | _?diracMatQ | LI | d];
+scalarQ[x_]    := FreeQ[x, _?fieldQ | _?diracMatQ | Alternatives@@$indices | d];
 
 (* ---- metric ----   g symmetric;  g_{mu}^{mu} = D = 4 *)
 SetAttributes[g, Orderless];
 g[a_, a_] := 4;
+
+(* ---- Kronecker delta for flavour indices and su2 gauge indices ---- delta symmetric;  delta_{i}^{i} = 3 *)
+SetAttributes[kroneckerDelta3, Orderless];
+kroneckerDelta3[a_, a_] := 3;
+KD3=kroneckerDelta3;
 
 (* ---- noncommutative product **  (boson/scalar factors are pulled out) ---- *)
 NC[]:=1;
@@ -71,30 +69,49 @@ d[mu_][c_] := 0 /; scalarQ[c];
 d[mu_][Times[a_, b__]] := d[mu][a] Times[b] + a d[mu][Times[b]];
 d[mu_][NC[a_, b__]] :=
    d[mu][a] ** NC[b] + a ** d[mu][NC[b]];
-d[_][ga[_]] = 0; d[_][ga5] = 0; d[_][PL] = 0; d[_][PR] = 0; d[_][g[__]] = 0;
+d[_][ga[_]] = 0; d[_][ga5] = 0; d[_][PL] = 0; d[_][PR] = 0; d[_][g[__]] = 0; d[_][KD3[__]] = 0;
 
 (* ---- metric contraction:  g_{mu nu} X^{..nu..} = X^{..mu..}  (nu a dummy) ---- *)
-contract[e_] := e //. HoldPattern[Times[g[LI[a_], LI[b_]], r__]] /;
-     Count[Cases[Times[r], LI[x_] :> x, Infinity], b] == 1 :> (Times[r] /. LI[b] -> LI[a]);
+contractIndexType[e_, metric_, indexType_] := e //. HoldPattern[Times[metric[indexType[a_], indexType[b_]], r__]] /;
+     Count[Cases[Times[r], indexType[x_] :> x, Infinity], b] == 1 :> (Times[r] /. indexType[b] -> indexType[a]);
      
+contract[e_]:= Module[{e1, e2},
+  e1 = contractIndexType[e, g, LI];
+  e2 = contractIndexType[e1, KD3, GI];
+  contractIndexType[e2, KD3, FI]
+]
+
 (* ---- dummy-index canonicalization (free indices preserved) ---- *)
-(* a label occurring exactly twice (counting powers: A[LI[mu]]^2 = A_mu A_mu)  *)
-(* is a contracted dummy.  Rename the k dummies to 1..k over all k! orderings   *)
-(* and keep the canonically smallest form.  Only index-bearing factors are      *)
-(* permuted; an index-free prefactor is split off and multiplied back.          *)
-labels[LI[x_]] := {x};
-labels[Power[b_, n_Integer?Positive]] := Join @@ ConstantArray[labels[b], n];
-labels[e_] := If[AtomQ[e], {}, Join @@ (labels /@ List @@ e)];
-canonTerm[t_] := Module[
-   {fac = If[Head[t] === Times, List @@ t, {t}], pre, core, dum},
-   pre  = Times @@ Select[fac, FreeQ[#, LI] &];
-   core = Times @@ Select[fac, ! FreeQ[#, LI] &];
-   dum = Cases[Tally[labels[core]], {x_, 2} :> x];
-   pre If[dum === {}, core,
-      First @ Sort @ Table[core /. Thread[dum -> p], {p, Permutations @ Range @ Length @ dum}]]];
+extractIndices[t_][h_[x_]] /; MemberQ[$indices, h] := If[h === t, {x}, {}];
+extractIndices[t_][Power[b_, n_Integer?Positive]] := Join @@ ConstantArray[extractIndices[t][b], n];
+extractIndices[t_][e_] := If[AtomQ[e], {}, Join @@ (extractIndices[t] /@ List @@ e)];
+
+canonicalizeOneIndexType[e_, indexType_] := Module[{dum, n},
+  (* any index appearing twice in expression is a dummy index *)
+  dum = Cases[Tally[extractIndices[indexType][e]], {x_, 2} :> indexType[x]];
+  n = Length[dum];
+  If[n === 0, e,
+    First @ Sort @ Table[
+      e /. Thread[dum -> Table[indexType[p[[k]]], {k, n}]],
+      {p, Permutations @ Range @ n}
+    ]
+  ]
+];
+
+(*apply canonicalization in all indices*)
+canonicalizeTerm[t_] := Module[
+  {fac, prefac, core},
+  fac  = If[Head[t] === Times, List @@ t, {t}];
+  prefac  = Times @@ Select[fac, FreeQ[#, Alternatives@@$indices] &];
+  core = Times @@ Select[fac, !FreeQ[#, Alternatives@@$indices] &];
+  (* Canonicalise each index type independently, in sequence *)
+  core = Fold[canonicalizeOneIndexType, core, $indices];
+  prefac * core
+];
+
 canonical[e_] := With[{x = Expand[e]},
-   If[Head[x] === Plus, canonTerm /@ x, canonTerm[x]]];
-   
+  If[Head[x] === Plus, canonicalizeTerm /@ x, canonicalizeTerm[x]]];
+  
 (* ---- Dirac-chain normaliser ---- *)
 (*  (1) gamma5 = P_R - P_L                                                      *)
 (*  (2) move ghost fields to the left past dirac matrices                       *)
@@ -197,20 +214,39 @@ feynmanRule[L_, legs_] := I canonical[diracSimplify[contract[functionalD[L, legs
 
 Unprotect[MakeBoxes];
 
-(* Box for a field head: registered label or plain symbol name *)
-ltIdxBox[n_Integer] := SubscriptBox["\[Mu]", ToString[n]];
-ltIdxBox[s_Symbol]  := SymbolName[s];
+$IdxNames = {
+  LI -> {"\[Mu]", "\[Nu]", "\[Rho]", "\[Sigma]", "\[Lambda]", "\[Kappa]", "\[Alpha]", "\[Beta]"},
+  FI -> {"i", "j", "k", "l", "m", "n", "o", "p"},
+  GI -> {"a", "b", "c", "d", "e", "f", "g", "h"}
+};
 
-MakeBoxes[LI[x_],                     StandardForm] := ltIdxBox[x];
-MakeBoxes[h_[LI[x_]],                 StandardForm] /; bosonQ[h] := SubscriptBox[ToString[h, StandardForm], ltIdxBox[x]];
-MakeBoxes[f_,                   StandardForm] /; oddQ[f]   := ToString[f, StandardForm];
-MakeBoxes[bar[f_],                    StandardForm] := OverscriptBox[MakeBoxes[f, StandardForm], "_"];
-MakeBoxes[d[LI[x_]][expr_],           StandardForm] := RowBox[{SubscriptBox["\[PartialD]", ltIdxBox[x]], "\[ThinSpace]", MakeBoxes[expr, StandardForm]}];
-MakeBoxes[ga[LI[x_]],                StandardForm] := SubscriptBox["\[Gamma]", ltIdxBox[x]];
-MakeBoxes[ga5,                        StandardForm] := SubscriptBox["\[Gamma]", "5"];
-MakeBoxes[PL,                         StandardForm] := SubscriptBox["P", "L"];
-MakeBoxes[PR,                         StandardForm] := SubscriptBox["P", "R"];
-MakeBoxes[g[LI[a_], LI[b_]],         StandardForm] := SubscriptBox["g", RowBox[{ltIdxBox[a], ltIdxBox[b]}]];
+IdxBox[type_][n_Integer] := Module[
+  {names = type /. $IdxNames},
+  If[n <= Length[names],
+    names[[n]],
+    RowBox[{ToString[type], "[", ToString[n], "]"}]
+  ]
+];
+
+IdxBox[type_][n_] := RowBox[{ToString[type], "[", ToString[n], "]"}];
+
+MakeBoxes[h_[x_],                     StandardForm] /;MemberQ[$indices,h]:= IdxBox[h][x];
+MakeBoxes[h_[inds__], StandardForm] /; fieldQ[h] :=
+  SubsuperscriptBox[
+    ToString[h, StandardForm],
+    RowBox[Cases[{inds}, LI[x_] :> IdxBox[LI][x]] ~Join~
+           Cases[{inds}, FI[x_] :> IdxBox[FI][x]]],
+    RowBox[Cases[{inds}, GI[x_] :> IdxBox[GI][x]]]
+  ];
+MakeBoxes[f_,                 StandardForm] /; oddQ[f]   := ToString[f, StandardForm];
+MakeBoxes[bar[f_],            StandardForm] := OverscriptBox[MakeBoxes[f, StandardForm], "_"];
+MakeBoxes[d[LI[x_]][expr_],   StandardForm] := RowBox[{SubscriptBox["\[PartialD]", IdxBox[LI][x]], "\[ThinSpace]", MakeBoxes[expr, StandardForm]}];
+MakeBoxes[ga[LI[x_]],         StandardForm] := SubscriptBox["\[Gamma]", IdxBox[LI][x]];
+MakeBoxes[ga5,                StandardForm] := SubscriptBox["\[Gamma]", "5"];
+MakeBoxes[PL,                 StandardForm] := SubscriptBox["P", "L"];
+MakeBoxes[PR,                 StandardForm] := SubscriptBox["P", "R"];
+MakeBoxes[g[LI[a_], LI[b_]],  StandardForm] := SubscriptBox["g", RowBox[{IdxBox[LI][a], IdxBox[LI][b]}]];
+MakeBoxes[KD3[h_[a_], h[b_]], StandardForm] /; MemberQ[{FI,GI},h] := SubscriptBox["\[Delta]", RowBox[{IdxBox[LI][a], IdxBox[LI][b]}]];
 MakeBoxes[expr_NC, StandardForm] := RowBox[MakeBoxes[#, StandardForm] & /@ List @@ expr];
 
 Protect[MakeBoxes];
