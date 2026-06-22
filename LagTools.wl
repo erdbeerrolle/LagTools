@@ -182,6 +182,7 @@ fdiff[{f_, xi_, p_}, d[m_][z_]] := (-I p[m]) fdiff[{f, xi, p}, z];
 
 (* delta phi_LI1 / delta phi_LI2 *)
 fdiff[{f_, LI[a_], p_}, f_[LI[b_]]] := g[LI[a], LI[b]];
+fdiff[{f_, h_[a_], p_}, f_[h_[b_]]] := KD3[h[a], h[b]] /; MemberQ[{GI, FI}, h];
 (* delta phi / delta phi *)
 fdiff[{f_, None, _}, f_] := 1 /; fieldQ[f];
 
