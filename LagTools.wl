@@ -8,18 +8,45 @@ diracMatQ[m_]:=MemberQ[$diracMat,m]||MemberQ[$diracMat,Head[m]];
 $indices = {LI, GI, FI};
 
 (*---- Field declarations ----*)
-DeclareBoson[h_Symbol]    :=(bosonQ[h] = True;     h);
 DeclareFermion[f_Symbol]  :=(fermionQ[f] = True;   f);
-DeclareGrassmann[f_Symbol]:=(grassmannQ[f] = True; f);
-
-DeclareBoson[h_Symbol,    lbl_]:=(DeclareBoson[h];    Format[h] = lbl; h);
 DeclareFermion[f_Symbol,  lbl_]:=(DeclareFermion[f];   Format[f] = lbl; f);
+
+DeclareGrassmann[f_Symbol]:=(grassmannQ[f] = True; f);
 DeclareGrassmann[f_Symbol,lbl_]:=(DeclareGrassmann[f]; Format[f] = lbl; f);
 
+DeclareBoson[h_Symbol] := (bosonQ[h] = True; h);
+DeclareBoson[h_Symbol, lbl_] := (DeclareBoson[h]; Format[h] = lbl; h);
+
+(* Real fields: Conjugate[h] = h *)
+DeclareRealBoson[h_Symbol] := (DeclareBoson[h]; h /: Conjugate[h] = h; h);
+DeclareRealBoson[h_Symbol, lbl_] := (DeclareRealBoson[h]; Format[h] = lbl; h);
+
+(* Complex-conjugate pairs: Conjugate[hp] = hm, Conjugate[hm] = hp *)
+DeclareComplexBoson[hp_Symbol, hm_Symbol] := (
+  DeclareBoson[hp]; DeclareBoson[hm];
+  hp /: Conjugate[hp] = hm;
+  hm /: Conjugate[hm] = hp;
+  {hp, hm}
+);
+DeclareComplexBoson[hp_Symbol, hm_Symbol, lbl_] := (
+  DeclareComplexBoson[hp, hm];
+  Format[hp] = Superscript[lbl, "+"]; Format[hm] = Superscript[lbl, "-"];
+  {hp, hm}
+);
+
+(*---- Parameter declarations ----*)
+DeclareComplexParam[p_Symbol]       := p;
+DeclareComplexParam[p_Symbol, lbl_] := (Format[p] = lbl; p);
+DeclareRealParam[p_Symbol]       := (DeclareComplexParam[p]; p /: Conjugate[p] = p; p);
+DeclareRealParam[p_Symbol, lbl_] := (DeclareRealParam[p]; Format[p] = lbl; p);
+
 (*----defaults----*)
-bosonQ[_]      :=False;
-fermionQ[_]    :=False;
-grassmannQ[_]  :=False;
+bosonQ[_]      := False;
+fermionQ[_]    := False;
+grassmannQ[_]  := False;
+(*gaugeParamQ[_] :=False;
+
+DeclareGaugeParam[th_Symbol] := (gaugeParamQ[th] = True; th);*)
 
 (* lift all predicates through indexed fields and bar *)
 With[{preds={bosonQ,fermionQ,grassmannQ}},
@@ -33,7 +60,7 @@ oddQ[x_]   := fermionQ[x] || grassmannQ[x];
 
 (*---- composite predicates with deep-scan ----*)
 commutingQ[x_] := FreeQ[x, _?oddQ | _?diracMatQ];
-scalarQ[x_]    := FreeQ[x, _?fieldQ | _?diracMatQ | Alternatives@@$indices | d];
+STindepQ[x_]   := FreeQ[x, _?fieldQ | _?diracMatQ | Alternatives@@$indices | d]; (*| _?gaugeParamQ *)
 
 (* ---- metric ----   g symmetric;  g_{mu}^{mu} = D = 4 *)
 SetAttributes[g, Orderless];
@@ -44,12 +71,24 @@ SetAttributes[kroneckerDelta3, Orderless];
 kroneckerDelta3[a_, a_] := 3;
 KD3=kroneckerDelta3;
 
+(* ---- Pauli matrices sigma[1,2,3] as explicit 2x2 matrices ---- *)
+sigma[1] = {{0, 1}, {1, 0}};
+sigma[2] = {{0, -I}, {I, 0}};
+sigma[3] = {{1, 0}, {0, -1}};
+
+(* Charge conjugation for an SU(2) doublet *)
+ChargeConj[phi_] := I * sigma[2] . Conjugate[phi];
+
+(* ---- SU(2) Levi-Civita / structure constant: eps3[a,b,c] = epsilon^{abc} ---- *)
+eps3[a_Integer, b_Integer, c_Integer] := Signature[{a, b, c}];
+
 (* ---- noncommutative product **  (boson/scalar factors are pulled out) ---- *)
-NC[]:=1;
-NC[x___,p_Plus,y___]:=NC[x,#,y]&/@p;
-NC[x___,c_?commutingQ,y___] := c*NC[x,y];
-NC[x___,c_?commutingQ d_,y___] := c*NC[x,d,y];
-NC[x___,NC[z___],y___]:=NC[x,z,y];
+NC[] := 1;
+NC[x___, p_Plus, y___]           := NC[x, #, y]& /@ p;
+NC[x___, c_?commutingQ, y___]    := c * NC[x, y];
+NC[x___, c_?commutingQ*d_, y___] := c * NC[x, d, y];
+NC[x___, NC[z___], y___]         := NC[x, z, y];
+NC[x___, l_List, y___]           := NC[x, #, y]& /@ l;
 
 (* ** delegates to NC *)
 Unprotect[NonCommutativeMultiply];
@@ -60,16 +99,20 @@ Protect[NonCommutativeMultiply];
 (* ---- Dirac conjugate bar: linear, antilinear in scalars ---- *)
 bar[0] = 0;
 bar[a_Plus] := bar /@ a;
-bar[c_ x_] := Conjugate[c] bar[x] /; scalarQ[c];
+bar[a_List] := bar /@ a;
+bar[c_ * x_] := Conjugate[c] bar[x] /; STindepQ[c];
+bar[PL ** f_] := bar[f] ** PR;
+bar[PR ** f_] := bar[f] ** PL;
 
 (* ---- derivative d_mu ---- *)
 d[mu_][a_Plus] := d[mu] /@ a;
-d[mu_][c_ x_] := c d[mu][x] /; scalarQ[c];
-d[mu_][c_] := 0 /; scalarQ[c];
+d[mu_][c_ * x_] := c d[mu][x] /; STindepQ[c];
+d[mu_][c_] := 0 /; STindepQ[c];
 d[mu_][Times[a_, b__]] := d[mu][a] Times[b] + a d[mu][Times[b]];
 d[mu_][NC[a_, b__]] :=
-   d[mu][a] ** NC[b] + a ** d[mu][NC[b]];
+   NC[d[mu][a], NC[b]] + NC[a, d[mu][NC[b]]];
 d[_][ga[_]] = 0; d[_][ga5] = 0; d[_][PL] = 0; d[_][PR] = 0; d[_][g[__]] = 0; d[_][KD3[__]] = 0;
+d[_][sigma[_]] = 0; d[_][eps3[__]] = 0;
 
 (* ---- metric contraction:  g_{mu nu} X^{..nu..} = X^{..mu..}  (nu a dummy) ---- *)
 contractIndexType[e_, metric_, indexType_] := e //. HoldPattern[Times[metric[indexType[a_], indexType[b_]], r__]] /;
@@ -118,26 +161,25 @@ canonical[e_] := With[{x = Expand[e]},
 (*  (3) move projectors right past gammas and collapse products:                *)
 (*        P_{L,R} gamma^mu = gamma^mu P_{R,L} ,  P^2 = P ,  P_L P_R = 0         *)
 (*  (4) completeness in a sum:  c X P_L Y + c X P_R Y -> c X Y  (P_L+P_R=1)    *)
-(*  (5) massless chirality (DeclareMassless[f]):                                 *)
-(*        PR ** f = 0 ,   bar[f] ** PL = 0                                       *)
 (*     applied AFTER (3) so projectors are already in canonical right position  *)
 diracSimplify[e_] := Module[{x},
    x = e /. ga5 -> PR - PL;
-   x = x //. NonCommutativeMultiply[a___, m_, f_, b___] /;
+   x = x //. NC[a___, m_, f_, b___] /;
                   (grassmannQ[f] && diracMatQ[m]) :>
-              NonCommutativeMultiply[a, f, m, b];
+              NC[a, f, m, b];
    x = x //. {
-      NonCommutativeMultiply[a___, PL, ga[m_], b___] :> NonCommutativeMultiply[a, ga[m], PR, b],
-      NonCommutativeMultiply[a___, PR, ga[m_], b___] :> NonCommutativeMultiply[a, ga[m], PL, b],
-      NonCommutativeMultiply[a___, PL, PL, b___] :> NonCommutativeMultiply[a, PL, b],
-      NonCommutativeMultiply[a___, PR, PR, b___] :> NonCommutativeMultiply[a, PR, b],
-      NonCommutativeMultiply[a___, PL, PR, b___] :> 0,
-      NonCommutativeMultiply[a___, PR, PL, b___] :> 0};
+      NC[a___, PL, ga[m_], b___] :> NC[a, ga[m], PR, b],
+      NC[a___, PR, ga[m_], b___] :> NC[a, ga[m], PL, b],
+      NC[a___, PL, PL, b___] :> NC[a, PL, b],
+      NC[a___, PR, PR, b___] :> NC[a, PR, b],
+      NC[a___, PL, PR, b___] :> 0,
+      NC[a___, PR, PL, b___] :> 0};
+   (* next step is not performant *)
    x = Expand[x] //. {
-      Plus[u___, c_. NonCommutativeMultiply[gg___, PL, hh___],
-                 c_. NonCommutativeMultiply[gg___, PR, hh___], v___] :>
-         Plus[u, v, c NonCommutativeMultiply[gg, hh]],
-      Plus[u___, c_. PL, c_. PR, v___] :> Plus[u, v, c]};
+      Plus[u___, c_. * NC[gg___, PL, hh___],
+                 c_. * NC[gg___, PR, hh___], v___] :>
+         Plus[u, v, c NC[gg, hh]],
+      Plus[u___, c_. * PL, c_. * PR, v___] :> Plus[u, v, c]};
    x];
    
 (* ---- chiral field renormalisation ---- *)
@@ -145,8 +187,8 @@ diracSimplify[e_] := Module[{x},
 (*   psibar -> (1+dZL) psibar P_R + (1+dZR) psibar P_L                           *)
 (* returns the substitution rules; apply with  L /. renorm[f, dZL, dZR] .       *)
 renorm[f_, zL_, zR_] := {
-   f -> (1 + zL) PL ** f + (1 + zR) PR ** f,
-   bar[f] -> (1 + Conjugate[zL]) bar[f] ** PR + (1 + Conjugate[zR]) bar[f] ** PL};
+   f -> (1 + zL) * NC[PL, f] + (1 + zR) NC[PR, f],
+   bar[f] ->   (1 + Conjugate[zL]) NC[bar[f], PR] + (1 + Conjugate[zR]) NC[bar[f], PL]};
 
 (* ---- boson field renormalisation ---- *)
 (*  Diagonal: h_0 = (1 + dZ/2) h                                                   *)
@@ -171,8 +213,8 @@ renormMix[h1_, h2_, dZ11_, dZ12_, dZ21_, dZ22_] := {
    
 (* ---- functional derivative ---- *)
 fdiff[lg_, a_Plus] := fdiff[lg, #] & /@ a;
-fdiff[lg_, c_ x_] := c fdiff[lg, x] /; scalarQ[c];
-fdiff[lg_, c_] := 0 /; scalarQ[c];
+fdiff[lg_, c_ * x_] := c fdiff[lg, x] /; STindepQ[c];
+fdiff[lg_, c_] := 0 /; STindepQ[c];
 fdiff[lg_, Times[a_, b__]] := fdiff[lg, a] Times[b] + a fdiff[lg, Times[b]];
 fdiff[lg_, Power[b_, n_Integer?Positive]] := n b^(n - 1) fdiff[lg, b];
 
@@ -185,6 +227,8 @@ fdiff[{f_, LI[a_], p_}, f_[LI[b_]]] := g[LI[a], LI[b]];
 fdiff[{f_, h_[a_], p_}, f_[h_[b_]]] := KD3[h[a], h[b]] /; MemberQ[{GI, FI}, h];
 (* delta phi / delta phi *)
 fdiff[{f_, None, _}, f_] := 1 /; fieldQ[f];
+(* delta theta / delta theta  (gauge parameters: bosonic, no Grassmann sign) *)
+fdiff[{f_, None, _}, f_] := 1 /; gaugeParamQ[f];
 
 (* graded Leibniz over a chain. pick up (-1)^(#odd factors to the left)      *)
 (* when the derivative is odd.                                               *)
@@ -209,9 +253,9 @@ feynmanRule[L_, legs_] := I canonical[diracSimplify[contract[functionalD[L, legs
 
 (* =================================================================== *)
 (*  Display formatting (notebook output)                               *)
-(*  Canonical dummy indices are integers (1,2,...) and display as      *)
-(*  \[Mu]\:2081, \[Mu]\:2082, ...                                                        *)
 (* =================================================================== *)
+
+properIndexStructureQ[inds__] := And @@ (MemberQ[$indices, Head[#]] & /@ {inds});
 
 Unprotect[MakeBoxes];
 
@@ -232,22 +276,31 @@ IdxBox[type_][n_Integer] := Module[
 IdxBox[type_][n_] := RowBox[{ToString[type], "[", ToString[n], "]"}];
 
 MakeBoxes[h_[x_],                     StandardForm] /;MemberQ[$indices,h]:= IdxBox[h][x];
-MakeBoxes[h_[inds__], StandardForm] /; fieldQ[h] :=
+MakeBoxes[h_[inds__], StandardForm] /; properIndexStructureQ[inds] :=
   SubsuperscriptBox[
-    ToString[h, StandardForm],
+    MakeBoxes[h, StandardForm],
     RowBox[Cases[{inds}, LI[x_] :> IdxBox[LI][x]] ~Join~
            Cases[{inds}, FI[x_] :> IdxBox[FI][x]]],
     RowBox[Cases[{inds}, GI[x_] :> IdxBox[GI][x]]]
   ];
-MakeBoxes[f_,                 StandardForm] /; oddQ[f]   := ToString[f, StandardForm];
+MakeBoxes[f_,                 StandardForm] /; fieldQ[f] && Head[f] =!= bar  := ToString[f, StandardForm];
 MakeBoxes[bar[f_],            StandardForm] := OverscriptBox[MakeBoxes[f, StandardForm], "_"];
 MakeBoxes[d[LI[x_]][expr_],   StandardForm] := RowBox[{SubscriptBox["\[PartialD]", IdxBox[LI][x]], "\[ThinSpace]", MakeBoxes[expr, StandardForm]}];
-MakeBoxes[ga[LI[x_]],         StandardForm] := SubscriptBox["\[Gamma]", IdxBox[LI][x]];
+MakeBoxes[ga[LI[x_]], StandardForm] := SubscriptBox["\[Gamma]", IdxBox[LI][x]];
 MakeBoxes[ga5,                StandardForm] := SubscriptBox["\[Gamma]", "5"];
 MakeBoxes[PL,                 StandardForm] := SubscriptBox["P", "L"];
 MakeBoxes[PR,                 StandardForm] := SubscriptBox["P", "R"];
 MakeBoxes[g[LI[a_], LI[b_]],  StandardForm] := SubscriptBox["g", RowBox[{IdxBox[LI][a], IdxBox[LI][b]}]];
 MakeBoxes[KD3[h_[a_], h[b_]], StandardForm] /; MemberQ[{FI,GI},h] := SubscriptBox["\[Delta]", RowBox[{IdxBox[LI][a], IdxBox[LI][b]}]];
+MakeBoxes[sigma[n_], StandardForm] := SuperscriptBox["\[Sigma]", ToString[n]];
+MakeBoxes[eps3[a_, b_, c_], StandardForm] :=
+  SuperscriptBox["\[Epsilon]", RowBox[{MakeBoxes[a,StandardForm], MakeBoxes[b,StandardForm], MakeBoxes[c,StandardForm]}]];
 MakeBoxes[expr_NC, StandardForm] := RowBox[MakeBoxes[#, StandardForm] & /@ List @@ expr];
+
+(* ChargeConj: single symbol -> symbol^C, compound -> (...)^C *)
+MakeBoxes[ChargeConj[s_Symbol], StandardForm] :=
+  SuperscriptBox[MakeBoxes[s, StandardForm], "C"];
+MakeBoxes[ChargeConj[expr_], StandardForm] :=
+  SuperscriptBox[RowBox[{"(", MakeBoxes[expr, StandardForm], ")"}], "C"];
 
 Protect[MakeBoxes];

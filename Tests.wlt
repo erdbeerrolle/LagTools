@@ -35,9 +35,9 @@ VerificationTest[oddQ[cc],                      True,  TestID -> "oddQ-ghost"];
 VerificationTest[oddQ[Wp[LI[1]]],               False, TestID -> "oddQ-boson"];
 VerificationTest[fieldQ[Wp[LI[1]]] && fieldQ[el] && fieldQ[bar[nu]], True,
    TestID -> "fieldQ-all"];
-VerificationTest[scalarQ[gw],                   True,  TestID -> "scalarQ-coupling"];
-VerificationTest[scalarQ[el] || scalarQ[Wp[LI[1]]] || scalarQ[g[LI[1],LI[2]]],
-   False, TestID -> "scalarQ-nonscalars"];
+VerificationTest[STindepQ[gw],                   True,  TestID -> "STindepQ-coupling"];
+VerificationTest[STindepQ[el] || STindepQ[Wp[LI[1]]],
+   False, TestID -> "STindepQ-nonscalars"];
 VerificationTest[diracMatQ[ga[LI[1]]] && diracMatQ[PL] && diracMatQ[ga5],
    True,  TestID -> "diracMatQ-gamma-head"];   (* the Bug-2 regression guard *)
 
