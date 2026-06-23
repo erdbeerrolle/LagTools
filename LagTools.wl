@@ -286,15 +286,14 @@ MakeBoxes[h_[inds__], StandardForm] /; properIndexStructureQ[inds] :=
 MakeBoxes[f_,                 StandardForm] /; fieldQ[f] && Head[f] =!= bar  := ToString[f, StandardForm];
 MakeBoxes[bar[f_],            StandardForm] := OverscriptBox[MakeBoxes[f, StandardForm], "_"];
 MakeBoxes[d[LI[x_]][expr_],   StandardForm] := RowBox[{SubscriptBox["\[PartialD]", IdxBox[LI][x]], "\[ThinSpace]", MakeBoxes[expr, StandardForm]}];
-MakeBoxes[ga[LI[x_]], StandardForm] := SubscriptBox["\[Gamma]", IdxBox[LI][x]];
-MakeBoxes[ga5,                StandardForm] := SubscriptBox["\[Gamma]", "5"];
-MakeBoxes[PL,                 StandardForm] := SubscriptBox["P", "L"];
-MakeBoxes[PR,                 StandardForm] := SubscriptBox["P", "R"];
-MakeBoxes[g[LI[a_], LI[b_]],  StandardForm] := SubscriptBox["g", RowBox[{IdxBox[LI][a], IdxBox[LI][b]}]];
-MakeBoxes[KD3[h_[a_], h[b_]], StandardForm] /; MemberQ[{FI,GI},h] := SubscriptBox["\[Delta]", RowBox[{IdxBox[LI][a], IdxBox[LI][b]}]];
+MakeBoxes[ga,   StandardForm] := "\[Gamma]";
+MakeBoxes[ga5,  StandardForm] := SubscriptBox["\[Gamma]", "5"];
+MakeBoxes[PL,   StandardForm] := SubscriptBox["P", "L"];
+MakeBoxes[PR,   StandardForm] := SubscriptBox["P", "R"];
+MakeBoxes[g,    StandardForm] := "g";
+MakeBoxes[KD3,  StandardForm] := "\[Delta]";
+MakeBoxes[eps3, StandardForm] := "\[Epsilon]";
 MakeBoxes[sigma[n_], StandardForm] := SuperscriptBox["\[Sigma]", ToString[n]];
-MakeBoxes[eps3[a_, b_, c_], StandardForm] :=
-  SuperscriptBox["\[Epsilon]", RowBox[{MakeBoxes[a,StandardForm], MakeBoxes[b,StandardForm], MakeBoxes[c,StandardForm]}]];
 MakeBoxes[expr_NC, StandardForm] := RowBox[MakeBoxes[#, StandardForm] & /@ List @@ expr];
 
 (* ChargeConj: single symbol -> symbol^C, compound -> (...)^C *)
