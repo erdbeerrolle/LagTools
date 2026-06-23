@@ -16,15 +16,17 @@ DeclareGrassmann[f_Symbol,lbl_]:=(DeclareGrassmann[f]; Format[f] = lbl; f);
 DeclareBoson[h_Symbol] := (bosonQ[h] = True; h);
 DeclareBoson[h_Symbol, lbl_] := (DeclareBoson[h]; Format[h] = lbl; h);
 
-(* Real fields: Conjugate[h] = h *)
-DeclareRealBoson[h_Symbol] := (DeclareBoson[h]; h /: Conjugate[h] = h; h);
+(* Real fields: Conjugate[h] = h, electric charge = 0 *)
+DeclareRealBoson[h_Symbol] := (DeclareBoson[h]; h /: Conjugate[h] = h; ElectricCharge[h] = 0; h);
 DeclareRealBoson[h_Symbol, lbl_] := (DeclareRealBoson[h]; Format[h] = lbl; h);
 
-(* Complex-conjugate pairs: Conjugate[hp] = hm, Conjugate[hm] = hp *)
+(* Complex-conjugate pairs: Conjugate[hp] = hm, charges +1/-1 by convention *)
 DeclareComplexBoson[hp_Symbol, hm_Symbol] := (
   DeclareBoson[hp]; DeclareBoson[hm];
   hp /: Conjugate[hp] = hm;
   hm /: Conjugate[hm] = hp;
+  ElectricCharge[hp] = 1;
+  ElectricCharge[hm] = -1;
   {hp, hm}
 );
 DeclareComplexBoson[hp_Symbol, hm_Symbol, lbl_] := (
@@ -275,6 +277,120 @@ functionalD[L_, legs_] := Module[{e = Expand[L]},
 feynmanRule[L_, legs_] := I canonical[diracSimplify[contract[functionalD[L, legs]]]];
 
 (* =================================================================== *)
+(*  Quantum numbers                                                     *)
+(* =================================================================== *)
+
+(* ElectricCharge[f] is real for any f; for fermions it stays symbolic *)
+Unprotect[Conjugate];
+Conjugate[ElectricCharge[f_]] := ElectricCharge[f];
+Protect[Conjugate];
+
+(* =================================================================== *)
+(*  Gauge multiplet infrastructure                                      *)
+(* =================================================================== *)
+
+su2DoubletQ[_] := False;
+su2SingletQ[_] := False;
+su2DoubletQ[h_[___]] /; h =!= bar := su2DoubletQ[h];
+su2SingletQ[h_[___]] /; h =!= bar := su2SingletQ[h];
+
+(* Collect distinct bare field-symbol atoms from an expression.
+   Heads -> True is required so that el inside el[FI[1]] is found
+   (heads sit at the {0} position and are invisible to the default levelspec). *)
+fieldSymbolsIn[expr_] :=
+  DeleteDuplicates @ Cases[{expr}, x_ /; AtomQ[x] && fieldQ[x], Infinity, Heads -> True];
+
+(* Probe a possibly function-valued expression with a dummy FI index *)
+probeExpr[expr_] :=
+  If[AtomQ[expr] || ListQ[expr], expr, Quiet[expr[FI[1]]]];
+
+DeclareGaugeDoublet::nofields    = "No field symbols found in lower component of doublet `1`.";
+DeclareGaugeDoublet::hypercharge = "Inconsistent hypercharges in lower component of `1`: `2`.";
+
+DeclareGaugeDoublet[sym_Symbol, lbl_, expr_] := Module[
+  {comps, lowerExpr, lowerFields, yValues},
+  (* Resolve SU(2) component list: explicit list or probe function *)
+  comps = If[ListQ[expr], expr, probeExpr[expr]];
+  If[!MatchQ[comps, {_, _}],
+    Message[DeclareGaugeDoublet::nofields, sym]; Return[$Failed]];
+  lowerExpr = comps[[2]];
+  su2DoubletQ[sym] = True;
+  (* Infer bosonic/fermionic from all component fields *)
+  With[{fs = fieldSymbolsIn[comps]},
+    If[AnyTrue[fs, fermionQ], fermionQ[sym] = True, bosonQ[sym] = True]];
+  (* Hypercharge from lower component (T3 = -1/2): Y = 2*(Q + 1/2) *)
+  lowerFields = fieldSymbolsIn[lowerExpr];
+  If[lowerFields === {},
+    Message[DeclareGaugeDoublet::nofields, sym]; Return[$Failed]];
+  yValues = 2*(ElectricCharge[#] + 1/2) & /@ lowerFields;
+  If[!SameQ @@ yValues,
+    Message[DeclareGaugeDoublet::hypercharge, sym, yValues]; Return[$Failed]];
+  Hypercharge[sym] = First[yValues];
+  GaugeMultExpansion[sym] = (sym :> expr);
+  Format[sym] = lbl;
+  sym
+];
+
+DeclareGaugeSinglet[sym_Symbol, lbl_, expr_] := Module[
+  {probed, fields},
+  su2SingletQ[sym] = True;
+  probed = probeExpr[expr];
+  fields = fieldSymbolsIn[probed];
+  If[AnyTrue[fields, fermionQ], fermionQ[sym] = True, bosonQ[sym] = True];
+  (* Inherit charge from the underlying field unless sym IS that field *)
+  If[fields =!= {} && First[fields] =!= sym,
+    ElectricCharge[sym] = ElectricCharge[First[fields]]];
+  Hypercharge[sym] = 2 * ElectricCharge[sym];  (* T3 = 0: Y = 2Q *)
+  GaugeMultExpansion[sym] = (sym :> expr);
+  Format[sym] = lbl;
+  sym
+];
+
+(* =================================================================== *)
+(*  SU(2) and U(1)_Y generators                                        *)
+(* =================================================================== *)
+
+(* sigma[a]/2 acting on an explicit doublet vector *)
+SU2T[a_][vec_List]         := (1/2) sigma[a] . vec;
+(* SU(2) generator vanishes on singlets *)
+SU2T[GI[_]][sym_?su2SingletQ]  := 0;
+SU2T[GI[_]][f_] /; su2SingletQ[Head[f]] := 0;
+
+(* U(1)_Y generator: return hypercharge of the multiplet.
+   Split bare-symbol vs indexed to avoid Hypercharge[sym[idx]] when idx is present. *)
+U1Y[sym_Symbol] /; su2DoubletQ[sym] || su2SingletQ[sym] := Hypercharge[sym];
+U1Y[f_[___]]    /; su2DoubletQ[f]   || su2SingletQ[f]   := Hypercharge[f];
+
+(* =================================================================== *)
+(*  Covariant derivative and field strength declarations                *)
+(* =================================================================== *)
+
+covDQ[_]     := False;
+fieldStrQ[_] := False;
+
+DeclareCovD[sym_Symbol, lbl_, rule_RuleDelayed] := (
+  covDQ[sym] = True;
+  CovDExpansion[sym] = rule;
+  Format[sym] = lbl;
+  sym
+);
+
+DeclareFieldStr[sym_Symbol, lbl_, rule_RuleDelayed] := (
+  fieldStrQ[sym] = True;
+  FieldStrExpansion[sym] = rule;
+  Format[sym] = lbl;
+  sym
+);
+
+(* =================================================================== *)
+(*  Explicit substitution                                               *)
+(* =================================================================== *)
+
+ExplGaugeMult[e_] := e /. (Last /@ DownValues[GaugeMultExpansion]);
+ExplCovD[e_]      := e /. (Last /@ DownValues[CovDExpansion]);
+ExplFieldStr[e_]  := e /. (Last /@ DownValues[FieldStrExpansion]);
+
+(* =================================================================== *)
 (*  Display formatting (notebook output)                               *)
 (* =================================================================== *)
 
@@ -325,5 +441,25 @@ MakeBoxes[ChargeConj[s_Symbol], StandardForm] :=
   SuperscriptBox[MakeBoxes[s, StandardForm], "C"];
 MakeBoxes[ChargeConj[expr_], StandardForm] :=
   SuperscriptBox[RowBox[{"(", MakeBoxes[expr, StandardForm], ")"}], "C"];
+
+(* Quantum numbers *)
+MakeBoxes[ElectricCharge[f_Symbol], StandardForm] :=
+  SubscriptBox["Q", MakeBoxes[f, StandardForm]];
+MakeBoxes[Hypercharge[f_Symbol], StandardForm] :=
+  SubscriptBox["Y", MakeBoxes[f, StandardForm]];
+
+(* Covariant derivative: (D_mu expr) *)
+MakeBoxes[sym_[LI[x_]][expr_], StandardForm] /; covDQ[sym] :=
+  RowBox[{"(", SubscriptBox[MakeBoxes[sym, StandardForm], IdxBox[LI][x]],
+          "\[ThinSpace]", MakeBoxes[expr, StandardForm], ")"}];
+
+(* SU(2) generator: T^a expr *)
+MakeBoxes[SU2T[GI[a_]][expr_], StandardForm] :=
+  RowBox[{SuperscriptBox["T", IdxBox[GI][a]], "\[ThinSpace]",
+          MakeBoxes[expr, StandardForm]}];
+
+(* U1Y: Y[expr] — only appears before evaluation for undeclared fields *)
+MakeBoxes[U1Y[expr_], StandardForm] :=
+  RowBox[{"Y", "[", MakeBoxes[expr, StandardForm], "]"}];
 
 Protect[MakeBoxes];

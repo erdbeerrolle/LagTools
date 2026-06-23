@@ -168,3 +168,172 @@ VerificationTest[
    fdiff[{AA, LI[2], k1}, d[LI[1]][AA[LI[3]]]],
    (-I k1[LI[1]]) g[LI[2], LI[3]],
    TestID -> "fdiff-derivative-momentum"];
+
+(* ================================================================== *)
+(* 10. ElectricCharge auto-assignment                                  *)
+(* ================================================================== *)
+
+DeclareRealBoson[HH]; DeclareRealBoson[chi];
+DeclareComplexBoson[phip, phim];
+(* nu, el already declared as fermions in the fixture above *)
+
+VerificationTest[ElectricCharge[HH],   0, TestID -> "charge-realboson"];
+VerificationTest[ElectricCharge[chi],  0, TestID -> "charge-realboson-2"];
+VerificationTest[ElectricCharge[phip], 1, TestID -> "charge-complexboson-plus"];
+VerificationTest[ElectricCharge[phim],-1, TestID -> "charge-complexboson-minus"];
+(* fermion charge stays symbolic — ElectricCharge[el] has no assignment *)
+VerificationTest[NumericQ[ElectricCharge[el]], False, TestID -> "charge-fermion-symbolic"];
+(* charges are real: Conjugate passes through *)
+VerificationTest[Conjugate[ElectricCharge[el]], ElectricCharge[el],
+   TestID -> "charge-fermion-real"];
+
+(* ================================================================== *)
+(* 11. DeclareGaugeDoublet                                             *)
+(* ================================================================== *)
+
+DeclareRealParam[v];
+
+(* Higgs-like bosonic doublet: lower component (v+HH+I chi)/Sqrt[2]   *)
+(* Both HH and chi have Q=0, T3=-1/2 -> Y = 2*(0+1/2) = 1            *)
+DeclareGaugeDoublet[Phi, "\[Phi]", {phip, (v + HH + I*chi)/Sqrt[2]}];
+
+VerificationTest[su2DoubletQ[Phi],  True,  TestID -> "doublet-su2DoubletQ"];
+VerificationTest[bosonQ[Phi],       True,  TestID -> "doublet-bosonQ-inferred"];
+VerificationTest[fermionQ[Phi],     False, TestID -> "doublet-not-fermionic"];
+VerificationTest[Hypercharge[Phi],  1,     TestID -> "doublet-hypercharge-higgs"];
+
+(* Predicates lift through indices *)
+VerificationTest[su2DoubletQ[Phi[FI[1]]], True, TestID -> "doublet-indexed-predicate"];
+VerificationTest[bosonQ[Phi[LI[1]]],      True, TestID -> "doublet-LI-predicate"];
+
+(* Fermionic doublet: lower component el, Q=ElectricCharge[el] (symbolic) *)
+DeclareGaugeDoublet[LeptL, Subscript["L", "L"], {nu, el}];
+
+VerificationTest[su2DoubletQ[LeptL], True,  TestID -> "doublet-LeptL-su2"];
+VerificationTest[fermionQ[LeptL],    True,  TestID -> "doublet-LeptL-fermionic"];
+VerificationTest[bosonQ[LeptL],      False, TestID -> "doublet-LeptL-not-bosonic"];
+VerificationTest[Hypercharge[LeptL], 2*(ElectricCharge[el] + 1/2),
+   TestID -> "doublet-LeptL-hypercharge"];
+
+(* Consistency error: lower component mixes fields with different hypercharges *)
+DeclareComplexBoson[hplus, hminus];  (* Q[hplus]=1, Q[hminus]=-1 *)
+(* lower component hplus+hminus: Y from hplus = 2*(1+1/2)=3, from hminus = 2*(-1+1/2)=-1 *)
+VerificationTest[
+   DeclareGaugeDoublet[BadDoublet, "bad", {hplus, hplus + hminus}],
+   $Failed,
+   {DeclareGaugeDoublet::hypercharge},
+   TestID -> "doublet-hypercharge-inconsistency-error"];
+
+(* ================================================================== *)
+(* 12. DeclareGaugeSinglet                                             *)
+(* ================================================================== *)
+
+(* Function-valued expansion: FermR[head][FI[a]] := PR ** head[FI[a]] *)
+FermR[head_][FI[a_]] := NC[PR, head[FI[a]]];
+
+DeclareGaugeSinglet[LeptR, Subscript["l", "R"], FermR[el]];
+
+VerificationTest[su2SingletQ[LeptR],   True,  TestID -> "singlet-su2SingletQ"];
+VerificationTest[fermionQ[LeptR],      True,  TestID -> "singlet-fermionic"];
+VerificationTest[bosonQ[LeptR],        False, TestID -> "singlet-not-bosonic"];
+VerificationTest[ElectricCharge[LeptR], ElectricCharge[el],
+   TestID -> "singlet-inherits-charge"];
+VerificationTest[Hypercharge[LeptR],   2*ElectricCharge[el],
+   TestID -> "singlet-hypercharge"];
+
+(* Indexed predicate lifts *)
+VerificationTest[su2SingletQ[LeptR[FI[1]]], True, TestID -> "singlet-indexed-predicate"];
+
+(* ================================================================== *)
+(* 13. SU2T and U1Y generators                                         *)
+(* ================================================================== *)
+
+(* sigma[1] = {{0,1},{1,0}}, so (1/2) sigma[1].{a,b} = {b/2, a/2} *)
+VerificationTest[SU2T[1][{aa, bb}], {bb/2, aa/2},
+   TestID -> "SU2T-sigma1-list"];
+(* sigma[3] = {{1,0},{0,-1}}, so (1/2) sigma[3].{a,b} = {a/2, -b/2} *)
+VerificationTest[SU2T[3][{aa, bb}], {aa/2, -bb/2},
+   TestID -> "SU2T-sigma3-list"];
+
+(* SU(2) generator vanishes on declared singlets *)
+VerificationTest[SU2T[GI[1]][LeptR],       0, TestID -> "SU2T-singlet-bare"];
+VerificationTest[SU2T[GI[2]][LeptR[FI[1]]], 0, TestID -> "SU2T-singlet-indexed"];
+
+(* U1Y returns the stored hypercharge *)
+VerificationTest[U1Y[Phi],        Hypercharge[Phi],  TestID -> "U1Y-doublet-bare"];
+VerificationTest[U1Y[LeptR],      Hypercharge[LeptR], TestID -> "U1Y-singlet-bare"];
+VerificationTest[U1Y[LeptL[FI[1]]], Hypercharge[LeptL], TestID -> "U1Y-doublet-indexed"];
+
+(* ================================================================== *)
+(* 14. DeclareCovD and ExplCovD                                        *)
+(* ================================================================== *)
+
+DeclareBoson[Amu];
+DeclareCovD[CD, "D", CD[mu_][f_] :> d[mu][f] + I*Amu[mu]*f];
+
+VerificationTest[covDQ[CD], True, TestID -> "covD-predicate"];
+VerificationTest[
+   ExplCovD[CD[LI[1]][HH]],
+   d[LI[1]][HH] + I*Amu[LI[1]]*HH,
+   TestID -> "covD-expl-scalar"];
+(* ExplCovD leaves non-CD objects alone *)
+VerificationTest[
+   ExplCovD[d[LI[1]][HH]],
+   d[LI[1]][HH],
+   TestID -> "covD-expl-passthrough"];
+
+(* ================================================================== *)
+(* 15. DeclareFieldStr and ExplFieldStr                                *)
+(* ================================================================== *)
+
+DeclareFieldStr[Fmn, "F", Fmn[LI[a_], LI[b_]] :> d[LI[a]][Amu[LI[b]]] - d[LI[b]][Amu[LI[a]]]];
+
+VerificationTest[fieldStrQ[Fmn], True, TestID -> "fieldStr-predicate"];
+VerificationTest[
+   ExplFieldStr[Fmn[LI[1], LI[2]]],
+   d[LI[1]][Amu[LI[2]]] - d[LI[2]][Amu[LI[1]]],
+   TestID -> "fieldStr-expl"];
+(* antisymmetry comes from the rule *)
+VerificationTest[
+   ExplFieldStr[Fmn[LI[2], LI[1]]],
+   d[LI[2]][Amu[LI[1]]] - d[LI[1]][Amu[LI[2]]],
+   TestID -> "fieldStr-expl-antisym"];
+(* ExplFieldStr leaves other objects alone *)
+VerificationTest[
+   ExplFieldStr[d[LI[1]][HH]],
+   d[LI[1]][HH],
+   TestID -> "fieldStr-expl-passthrough"];
+
+(* ================================================================== *)
+(* 16. ExplGaugeMult                                                   *)
+(* ================================================================== *)
+
+(* scalar doublet: bare symbol replaced by component list *)
+VerificationTest[
+   ExplGaugeMult[Phi],
+   {phip, (v + HH + I*chi)/Sqrt[2]},
+   TestID -> "explMult-doublet-bare"];
+
+(* scalar doublet inside an expression *)
+VerificationTest[
+   ExplGaugeMult[3*Phi],
+   3*{phip, (v + HH + I*chi)/Sqrt[2]},
+   TestID -> "explMult-doublet-scaled"];
+
+(* fermionic singlet with function expansion: LeptR[FI[1]] -> PR ** el[FI[1]] *)
+VerificationTest[
+   ExplGaugeMult[LeptR[FI[1]]],
+   NC[PR, el[FI[1]]],
+   TestID -> "explMult-singlet-indexed"];
+
+(* fermionic doublet bare *)
+VerificationTest[
+   ExplGaugeMult[LeptL],
+   {nu, el},
+   TestID -> "explMult-doublet-fermionic"];
+
+(* non-multiplet symbols are untouched *)
+VerificationTest[
+   ExplGaugeMult[HH + d[LI[1]][HH]],
+   HH + d[LI[1]][HH],
+   TestID -> "explMult-passthrough"];
