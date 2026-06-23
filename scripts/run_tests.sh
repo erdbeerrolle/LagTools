@@ -14,9 +14,14 @@ wolframscript -code '
       Print["\033[32m  PASS\033[0m  " <> name],
       failed++;
       Print["\033[31m  FAIL\033[0m  " <> name];
-      Print["         Input    : " <> ToString[res["TestInput"], InputForm]];
-      Print["         Expected : " <> ToString[res["ExpectedOutput"], InputForm]];
-      Print["         Got      : " <> ToString[res["ActualOutput"], InputForm]]
+      Print["         Input    : " <> ToString[res["TestInput"][[1]],    InputForm]];
+      Print["         Expected : " <> ToString[res["ExpectedOutput"][[1]], InputForm]];
+      Print["         Got      : " <> ToString[res["ActualOutput"][[1]],  InputForm]];
+      Print["         Trace (fdiff / STindepQ):"];
+      Scan[
+        Print["           " <> ToString[#, InputForm]] &,
+        Flatten[Trace @@ Append[res["TestInput"], _fdiff | _STindepQ], Infinity]
+      ]
     ]
   ], results];
   Print[""];

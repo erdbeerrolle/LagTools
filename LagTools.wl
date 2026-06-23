@@ -1,10 +1,9 @@
 (* ::Package:: *)
 
 (*---- Dirac matrices ----*)
-$diracMat = {ga, ga5, PL, PR};
-diracMatQ[m_]:=MemberQ[$diracMat,m]||MemberQ[$diracMat,Head[m]];
+$diracMat = {ga, ga0, ga5, PL, PR};
+diracMatQ[m_] := MemberQ[$diracMat,m] || MemberQ[$diracMat,Head[m]];
 
-(* Index types: Lorentz index LI, gauge index GI, Flavour index FI *)
 $indices = {LI, GI, FI};
 
 (*---- Field declarations ----*)
@@ -44,12 +43,9 @@ DeclareRealParam[p_Symbol, lbl_] := (DeclareRealParam[p]; Format[p] = lbl; p);
 bosonQ[_]      := False;
 fermionQ[_]    := False;
 grassmannQ[_]  := False;
-(*gaugeParamQ[_] :=False;
-
-DeclareGaugeParam[th_Symbol] := (gaugeParamQ[th] = True; th);*)
 
 (* lift all predicates through indexed fields and bar *)
-With[{preds={bosonQ,fermionQ,grassmannQ}},
+With[{preds={bosonQ, fermionQ, grassmannQ}},
   Scan[(#[h_[___]] /; h=!=bar := #[h])&, preds];
   Scan[(#[bar[f_]] := #[f])&, preds];
 ];
@@ -59,17 +55,21 @@ fieldQ[x_] := bosonQ[x] || fermionQ[x] || grassmannQ[x];
 oddQ[x_]   := fermionQ[x] || grassmannQ[x];
 
 (*---- composite predicates with deep-scan ----*)
-commutingQ[x_] := FreeQ[x, _?oddQ | _?diracMatQ];
-STindepQ[x_]   := FreeQ[x, _?fieldQ | _?diracMatQ | Alternatives@@$indices | d]; (*| _?gaugeParamQ *)
+commutingQ[x_]   := FreeQ[x, _?oddQ | _?diracMatQ];
+STindepQ[x_]     := FreeQ[x, _?fieldQ];
+diracScalarQ[x_] := FreeQ[x, _?fermionQ | _?diracMatQ];
+scalarQ = diracScalarQ;
 
 (* ---- metric ----   g symmetric;  g_{mu}^{mu} = D = 4 *)
 SetAttributes[g, Orderless];
 g[a_, a_] := 4;
 
 (* ---- Kronecker delta for flavour indices and su2 gauge indices ---- delta symmetric;  delta_{i}^{i} = 3 *)
-SetAttributes[kroneckerDelta3, Orderless];
-kroneckerDelta3[a_, a_] := 3;
-KD3=kroneckerDelta3;
+SetAttributes[kd3, Orderless];
+kd3[a_, a_] := 3;
+
+(* ---- SU(2) Levi-Civita / structure constant: eps3[a,b,c] = epsilon^{abc} ---- *)
+eps3[a_Integer, b_Integer, c_Integer] := Signature[{a, b, c}];
 
 (* ---- Pauli matrices sigma[1,2,3] as explicit 2x2 matrices ---- *)
 sigma[1] = {{0, 1}, {1, 0}};
@@ -77,10 +77,8 @@ sigma[2] = {{0, -I}, {I, 0}};
 sigma[3] = {{1, 0}, {0, -1}};
 
 (* Charge conjugation for an SU(2) doublet *)
-ChargeConj[phi_] := I * sigma[2] . Conjugate[phi];
+ChargeConj[phi_List] := I * sigma[2] . Conjugate[phi];
 
-(* ---- SU(2) Levi-Civita / structure constant: eps3[a,b,c] = epsilon^{abc} ---- *)
-eps3[a_Integer, b_Integer, c_Integer] := Signature[{a, b, c}];
 
 (* ---- noncommutative product **  (boson/scalar factors are pulled out) ---- *)
 NC[] := 1;
@@ -89,6 +87,7 @@ NC[x___, c_?commutingQ, y___]    := c * NC[x, y];
 NC[x___, c_?commutingQ*d_, y___] := c * NC[x, d, y];
 NC[x___, NC[z___], y___]         := NC[x, z, y];
 NC[x___, l_List, y___]           := NC[x, #, y]& /@ l;
+NC[x___, ga0, ga0, y___] := NC[x, y];
 
 (* ** delegates to NC *)
 Unprotect[NonCommutativeMultiply];
@@ -100,19 +99,42 @@ Protect[NonCommutativeMultiply];
 bar[0] = 0;
 bar[a_Plus] := bar /@ a;
 bar[a_List] := bar /@ a;
-bar[c_ * x_] := Conjugate[c] bar[x] /; STindepQ[c];
+bar[c_ * x_] := Conjugate[c] bar[x] /; diracScalarQ[c];
 bar[PL ** f_] := bar[f] ** PR;
 bar[PR ** f_] := bar[f] ** PL;
 
+(* ---- Hermitian conjugate (†) ---- *)
+(*  CT reverses the NC chain and applies † to each factor;             *)
+(*  ga0 factors cancel pairwise via the NC rule ga0.ga0 = 1            *)
+Unprotect[ConjugateTranspose];
+ConjugateTranspose[ga[mu_]]     := NC[ga0, ga[mu], ga0];
+ConjugateTranspose[ga5]         := NC[-ga0, ga5, ga0];
+ConjugateTranspose[ga0]         := ga0;
+ConjugateTranspose[PL]          := NC[ga0, PR, ga0];
+ConjugateTranspose[PR]          := NC[ga0, PL, ga0];
+ConjugateTranspose[f_?fermionQ] := NC[bar[f], ga0] /; Head[f] =!= bar;
+ConjugateTranspose[bar[f_?fermionQ]] := NC[ga0, f];
+ConjugateTranspose[NC[a_]]      := ConjugateTranspose[a];
+ConjugateTranspose[NC[a_, b__]] :=
+  NC[ConjugateTranspose[NC[b]], ConjugateTranspose[a]];
+ConjugateTranspose[a_Plus]      := ConjugateTranspose /@ a;
+ConjugateTranspose[a_Dot]      := ConjugateTranspose /@ Reverse[a];
+ConjugateTranspose[c_ * x_]     := Conjugate[c] ConjugateTranspose[x] /; scalarQ[c];
+ConjugateTranspose[x_?scalarQ] := Conjugate[x];
+ConjugateTranspose[0]           := 0;
+ConjugateTranspose[d[a_][b_]] := d[a][ConjugateTranspose[b]];
+Protect[ConjugateTranspose];
+
+Unprotect[Conjugate];
+Conjugate[h_[inds__]] /; properIndexStructureQ[inds] := Conjugate[h][inds];
+Protect[Conjugate];
+
 (* ---- derivative d_mu ---- *)
 d[mu_][a_Plus] := d[mu] /@ a;
-d[mu_][c_ * x_] := c d[mu][x] /; STindepQ[c];
+d[mu_][Times[a_, b__]] :=  d[mu][a] Times[b] + a d[mu][Times[b]];
+d[mu_][NC[a_, b___]]   := NC[d[mu][a], NC[b]] + NC[a, d[mu][NC[b]]];
 d[mu_][c_] := 0 /; STindepQ[c];
-d[mu_][Times[a_, b__]] := d[mu][a] Times[b] + a d[mu][Times[b]];
-d[mu_][NC[a_, b__]] :=
-   NC[d[mu][a], NC[b]] + NC[a, d[mu][NC[b]]];
-d[_][ga[_]] = 0; d[_][ga5] = 0; d[_][PL] = 0; d[_][PR] = 0; d[_][g[__]] = 0; d[_][KD3[__]] = 0;
-d[_][sigma[_]] = 0; d[_][eps3[__]] = 0;
+
 
 (* ---- metric contraction:  g_{mu nu} X^{..nu..} = X^{..mu..}  (nu a dummy) ---- *)
 contractIndexType[e_, metric_, indexType_] := e //. HoldPattern[Times[metric[indexType[a_], indexType[b_]], r__]] /;
@@ -120,8 +142,8 @@ contractIndexType[e_, metric_, indexType_] := e //. HoldPattern[Times[metric[ind
      
 contract[e_]:= Module[{e1, e2},
   e1 = contractIndexType[e, g, LI];
-  e2 = contractIndexType[e1, KD3, GI];
-  contractIndexType[e2, KD3, FI]
+  e2 = contractIndexType[e1, kd3, GI];
+  contractIndexType[e2, kd3, FI]
 ]
 
 (* ---- dummy-index canonicalization (free indices preserved) ---- *)
@@ -220,15 +242,16 @@ fdiff[lg_, Power[b_, n_Integer?Positive]] := n b^(n - 1) fdiff[lg, b];
 
 (* functional differentiation of field derivatives with transition to         *)
 (* momentum space                                                             *)
-fdiff[{f_, xi_, p_}, d[m_][z_]] := (-I p[m]) fdiff[{f, xi, p}, z];
+fdiff[{f_, xi_, p_}, HoldPattern[d[m_][z_]]] :=
+  (-I p[m]) fdiff[{f, xi, p}, z];
 
 (* delta phi_LI1 / delta phi_LI2 *)
 fdiff[{f_, LI[a_], p_}, f_[LI[b_]]] := g[LI[a], LI[b]];
-fdiff[{f_, h_[a_], p_}, f_[h_[b_]]] := KD3[h[a], h[b]] /; MemberQ[{GI, FI}, h];
+fdiff[{f_, h_[a_], p_}, f_[h_[b_]]] := kd3[h[a], h[b]] /; MemberQ[{GI, FI}, h];
 (* delta phi / delta phi *)
 fdiff[{f_, None, _}, f_] := 1 /; fieldQ[f];
 (* delta theta / delta theta  (gauge parameters: bosonic, no Grassmann sign) *)
-fdiff[{f_, None, _}, f_] := 1 /; gaugeParamQ[f];
+(*fdiff[{f_, None, _}, f_] := 1 /; gaugeParamQ[f];*)
 
 (* graded Leibniz over a chain. pick up (-1)^(#odd factors to the left)      *)
 (* when the derivative is odd.                                               *)
@@ -285,13 +308,14 @@ MakeBoxes[h_[inds__], StandardForm] /; properIndexStructureQ[inds] :=
   ];
 MakeBoxes[f_,                 StandardForm] /; fieldQ[f] && Head[f] =!= bar  := ToString[f, StandardForm];
 MakeBoxes[bar[f_],            StandardForm] := OverscriptBox[MakeBoxes[f, StandardForm], "_"];
-MakeBoxes[d[LI[x_]][expr_],   StandardForm] := RowBox[{SubscriptBox["\[PartialD]", IdxBox[LI][x]], "\[ThinSpace]", MakeBoxes[expr, StandardForm]}];
+MakeBoxes[d[LI[x_]][expr_],   StandardForm] := RowBox[{"(", SubscriptBox["\[PartialD]", IdxBox[LI][x]], "\[ThinSpace]", MakeBoxes[expr, StandardForm],")"}];
 MakeBoxes[ga,   StandardForm] := "\[Gamma]";
+MakeBoxes[ga0,  StandardForm] := SubscriptBox["\[Gamma]", "0"];
 MakeBoxes[ga5,  StandardForm] := SubscriptBox["\[Gamma]", "5"];
 MakeBoxes[PL,   StandardForm] := SubscriptBox["P", "L"];
 MakeBoxes[PR,   StandardForm] := SubscriptBox["P", "R"];
 MakeBoxes[g,    StandardForm] := "g";
-MakeBoxes[KD3,  StandardForm] := "\[Delta]";
+MakeBoxes[kd3,  StandardForm] := "\[Delta]";
 MakeBoxes[eps3, StandardForm] := "\[Epsilon]";
 MakeBoxes[sigma[n_], StandardForm] := SuperscriptBox["\[Sigma]", ToString[n]];
 MakeBoxes[expr_NC, StandardForm] := RowBox[MakeBoxes[#, StandardForm] & /@ List @@ expr];
