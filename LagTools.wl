@@ -1,5 +1,8 @@
 (* ::Package:: *)
 
+If[TrueQ[$LagToolsLoaded], Return[]];
+$LagToolsLoaded = True;
+
 (*---- Dirac matrices ----*)
 $diracMat = {ga, ga0, ga5, PL, PR};
 diracMatQ[m_] := MemberQ[$diracMat,m] || MemberQ[$diracMat,Head[m]];
@@ -7,11 +10,11 @@ diracMatQ[m_] := MemberQ[$diracMat,m] || MemberQ[$diracMat,Head[m]];
 $indices = {LI, GI, FI};
 
 (*---- Field declarations ----*)
-DeclareFermion[f_Symbol]  :=(fermionQ[f] = True;   f);
-DeclareFermion[f_Symbol,  lbl_]:=(DeclareFermion[f];   Format[f] = lbl; f);
+DeclareFermion[f_Symbol] := (fermionQ[f] = True; f);
+DeclareFermion[f_Symbol,  lbl_] := (DeclareFermion[f]; Format[f] = lbl; f);
 
-DeclareGrassmann[f_Symbol]:=(grassmannQ[f] = True; f);
-DeclareGrassmann[f_Symbol,lbl_]:=(DeclareGrassmann[f]; Format[f] = lbl; f);
+DeclareGrassmann[f_Symbol] := (grassmannQ[f] = True; f);
+DeclareGrassmann[f_Symbol,lbl_] := (DeclareGrassmann[f]; Format[f] = lbl; f);
 
 DeclareBoson[h_Symbol] := (bosonQ[h] = True; h);
 DeclareBoson[h_Symbol, lbl_] := (DeclareBoson[h]; Format[h] = lbl; h);
@@ -60,26 +63,33 @@ oddQ[x_]   := fermionQ[x] || grassmannQ[x];
 commutingQ[x_]   := FreeQ[x, _?oddQ | _?diracMatQ];
 STindepQ[x_]     := FreeQ[x, _?fieldQ];
 diracScalarQ[x_] := FreeQ[x, _?fermionQ | _?diracMatQ];
-scalarQ = diracScalarQ;
+scalarQ[x_] := diracScalarQ[x] && FreeQ[x, _?su2DoubletQ];
+
+properIndexStructureQ[inds__] := And @@ (MemberQ[$indices, Head[#]] & /@ {inds});
+
+(* True when the expression carries no index slots of any type *)
+indexFreeQ[e_] := FreeQ[e, Alternatives @@ (Blank /@ $indices)];
 
 (* ---- metric ----   g symmetric;  g_{mu}^{mu} = D = 4 *)
 SetAttributes[g, Orderless];
-g[a_, a_] := 4;
+g[LI[i[a_]], LI[i[a_]]] /; IntegerQ[a] := 4;
 
 (* ---- Kronecker delta for flavour indices and su2 gauge indices ---- delta symmetric;  delta_{i}^{i} = 3 *)
 SetAttributes[kd3, Orderless];
-kd3[a_, a_] := 3;
+kd3[h_[i[a_]], h_[i[a_]]] /; IntegerQ[a] && MemberQ[h, {FI, GI}] := 3;
+kd3[h_[a_],h_[a_]] /; IntegerQ[a] && MemberQ[h, {FI, GI}] := 1;
 
 (* ---- SU(2) Levi-Civita / structure constant: eps3[a,b,c] = epsilon^{abc} ---- *)
-eps3[a_Integer, b_Integer, c_Integer] := Signature[{a, b, c}];
+eps3[h_[a_Integer], h_[b_Integer], h_[c_Integer]] /; MemberQ[h, {GI}] := Signature[{a, b, c}];
 
 (* ---- Pauli matrices sigma[1,2,3] as explicit 2x2 matrices ---- *)
-sigma[1] = {{0, 1}, {1, 0}};
-sigma[2] = {{0, -I}, {I, 0}};
-sigma[3] = {{1, 0}, {0, -1}};
+sigma[GI[1]] = {{0, 1}, {1, 0}};
+sigma[GI[2]] = {{0, -I}, {I, 0}};
+sigma[GI[3]] = {{1, 0}, {0, -1}};
 
 (* Charge conjugation for an SU(2) doublet *)
-ChargeConj[phi_List] := I * sigma[2] . Conjugate[phi];
+ChargeConj[phi_List] := I * sigma[GI[2]] . Conjugate[phi];
+ChargeConj[col_Col]  := Col @@ (I * sigma[GI[2]] . Conjugate[List @@ col]);
 
 
 (* ---- noncommutative product **  (boson/scalar factors are pulled out) ---- *)
@@ -89,6 +99,7 @@ NC[x___, c_?commutingQ, y___]    := c * NC[x, y];
 NC[x___, c_?commutingQ*d_, y___] := c * NC[x, d, y];
 NC[x___, NC[z___], y___]         := NC[x, z, y];
 NC[x___, l_List, y___]           := NC[x, #, y]& /@ l;
+NC[x___, col_Col, y___]          := Col @@ (NC[x, #, y]& /@ List@@col);
 NC[x___, ga0, ga0, y___] := NC[x, y];
 
 (* ** delegates to NC *)
@@ -100,7 +111,8 @@ Protect[NonCommutativeMultiply];
 (* ---- Dirac conjugate bar: linear, antilinear in scalars ---- *)
 bar[0] = 0;
 bar[a_Plus] := bar /@ a;
-bar[a_List] := bar /@ a;
+bar[a_List]      := bar /@ a;
+bar[col_Col]     := Col @@ (bar /@ List@@col);
 bar[c_ * x_] := Conjugate[c] bar[x] /; diracScalarQ[c];
 bar[PL ** f_] := bar[f] ** PR;
 bar[PR ** f_] := bar[f] ** PL;
@@ -109,6 +121,7 @@ bar[PR ** f_] := bar[f] ** PL;
 (*  CT reverses the NC chain and applies † to each factor;             *)
 (*  ga0 factors cancel pairwise via the NC rule ga0.ga0 = 1            *)
 Unprotect[ConjugateTranspose];
+ConjugateTranspose[x_?scalarQ] := Conjugate[x];
 ConjugateTranspose[ga[mu_]]     := NC[ga0, ga[mu], ga0];
 ConjugateTranspose[ga5]         := NC[-ga0, ga5, ga0];
 ConjugateTranspose[ga0]         := ga0;
@@ -122,13 +135,16 @@ ConjugateTranspose[NC[a_, b__]] :=
 ConjugateTranspose[a_Plus]      := ConjugateTranspose /@ a;
 ConjugateTranspose[a_Dot]      := ConjugateTranspose /@ Reverse[a];
 ConjugateTranspose[c_ * x_]     := Conjugate[c] ConjugateTranspose[x] /; scalarQ[c];
-ConjugateTranspose[x_?scalarQ] := Conjugate[x];
 ConjugateTranspose[0]           := 0;
 ConjugateTranspose[d[a_][b_]] := d[a][ConjugateTranspose[b]];
+ConjugateTranspose[col_Col]   := Col @@ (Conjugate /@ List@@col);
 Protect[ConjugateTranspose];
 
 Unprotect[Conjugate];
 Conjugate[h_[inds__]] /; properIndexStructureQ[inds] := Conjugate[h][inds];
+Conjugate[ElectricCharge[f_]] := ElectricCharge[f];
+Conjugate[d[a_][b_]] := d[a][Conjugate[b]];
+Conjugate[INS[a___]] := INS[Conjugate[a]];
 Protect[Conjugate];
 
 (* ---- derivative d_mu ---- *)
@@ -136,6 +152,8 @@ d[mu_][a_Plus] := d[mu] /@ a;
 d[mu_][Times[a_, b__]] :=  d[mu][a] Times[b] + a d[mu][Times[b]];
 d[mu_][NC[a_, b___]]   := NC[d[mu][a], NC[b]] + NC[a, d[mu][NC[b]]];
 d[mu_][c_] := 0 /; STindepQ[c];
+d[mu_][l_List]  := d[mu] /@ l;
+d[mu_][col_Col] := Col @@ (d[mu] /@ List@@col);
 
 
 (* ---- metric contraction:  g_{mu nu} X^{..nu..} = X^{..mu..}  (nu a dummy) ---- *)
@@ -149,37 +167,109 @@ contract[e_]:= Module[{e1, e2},
 ]
 
 (* ---- dummy-index canonicalization (free indices preserved) ---- *)
-extractIndices[t_][h_[x_]] /; MemberQ[$indices, h] := If[h === t, {x}, {}];
+HeadAndArgs[e_] := Join[List@@e,{Head[e]}];
+
+extractIndices[t_][e_] /; FreeQ[e, t] := {};
+extractIndices[t_][h_[i[x_]]] /; MemberQ[$indices, h] := If[h === t, {i[x]}, {}];
 extractIndices[t_][Power[b_, n_Integer?Positive]] := Join @@ ConstantArray[extractIndices[t][b], n];
-extractIndices[t_][e_] := If[AtomQ[e], {}, Join @@ (extractIndices[t] /@ List @@ e)];
+extractIndices[t_][e_] /; Head[e] =!= Power := If[AtomQ[e], {}, Join @@ (extractIndices[t] /@ HeadAndArgs @ e)];
+
+dummyIndices[t_][e_] := Cases[Tally[extractIndices[t][e]], {x_, 2} :> t[x]];
 
 canonicalizeOneIndexType[e_, indexType_] := Module[{dum, n},
   (* any index appearing twice in expression is a dummy index *)
-  dum = Cases[Tally[extractIndices[indexType][e]], {x_, 2} :> indexType[x]];
+  dum = dummyIndices[indexType][e];
   n = Length[dum];
   If[n === 0, e,
     First @ Sort @ Table[
-      e /. Thread[dum -> Table[indexType[p[[k]]], {k, n}]],
+      e /. Thread[dum -> Table[indexType[i[p[[k]]]], {k, n}]],
       {p, Permutations @ Range @ n}
     ]
   ]
 ];
 
-(*apply canonicalization in all indices*)
-canonicalizeTerm[t_] := Module[
-  {fac, prefac, core},
-  fac  = If[Head[t] === Times, List @@ t, {t}];
-  prefac  = Times @@ Select[fac, FreeQ[#, Alternatives@@$indices] &];
-  core = Times @@ Select[fac, !FreeQ[#, Alternatives@@$indices] &];
-  (* Canonicalise each index type independently, in sequence *)
-  core = Fold[canonicalizeOneIndexType, core, $indices];
-  prefac * core
-];
+(* canonical: normalize via Expand[INS[...]] then canonicalize dummy names *)
+canonicalizeINS[INS[x_]] := INS[Fold[canonicalizeOneIndexType, x, $indices]];
+canonicalizeINS[e_Plus]  := canonicalizeINS /@ e;
+canonicalizeINS[e_]      := e;
+canonical[e_] := canonicalizeINS[Expand[INS[e]]];
 
-canonical[e_] := With[{x = Expand[e]},
-  If[Head[x] === Plus, canonicalizeTerm /@ x, canonicalizeTerm[x]]];
-  
-(* ---- Dirac-chain normaliser ---- *)
+(* perform sum over gauge indices *)
+SumOverIndices[expr_, {}] := expr;
+SumOverIndices[expr_, dum_List] :=
+ Module[{d = First[dum], rest = Rest[dum]},
+  Sum[SumOverIndices[expr /. d :> Head[d][a], rest], {a, 1, 3}]];
+
+(* GISum: sum GI dummy indices; INS wrapper is preserved in each summand *)
+GISum[INS[x_]] := With[{dum = dummyIndices[GI][x]}, SumOverIndices[INS[x], dum]];
+GISum[e_Plus]  := GISum /@ e;
+GISum[e_]      := GISum[INS[e]];
+
+(* =================================================================== *)
+(*  IndexNamespace (INS): expression wrapper that prevents dummy-index  *)
+(*  collisions when combining sub-expressions.                          *)
+(*                                                                      *)
+(*  INS[a] * INS[b]  = INS[a * b']     b' has conflicting dummies      *)
+(*  INS[a] ** INS[b] = INS[NC[a, b']]  renamed before combining        *)
+(* =================================================================== *)
+
+IndexNamespace := INS;
+
+(* Collect all i[n] integer values for indexType present in expr *)
+iValsOf[indexType_][expr_] :=
+  DeleteDuplicates @ Cases[extractIndices[indexType][expr], i[n_Integer] :> n];
+
+(* Rename conflicting dummy indices in expr2 so they don't clash with expr1 *)
+resolveIndexConflicts[expr1_, expr2_] :=
+  Fold[
+    Function[{e2, t},
+      Module[{conflicts, allUsed, fresh, rules},
+        conflicts = Intersection[dummyIndices[t][expr1], dummyIndices[t][e2]];
+        If[conflicts === {}, e2,
+          allUsed = Union[iValsOf[t][expr1], iValsOf[t][e2]];
+          fresh = Take[
+            Select[Range[Max[Append[allUsed, 0]] + 2 Length[conflicts] + 2],
+                   !MemberQ[allUsed, #] &],
+            Length[conflicts]];
+          e2 /. Thread[conflicts -> (t[i[#]] & /@ fresh)]
+        ]
+      ]
+    ],
+    expr2, $indices
+  ];
+
+INS[INS[a_]]:=INS[a];
+
+
+(* Index-free factors have no dummy-index conflicts — pull them out *)
+INS[c_?indexFreeQ]        := c;
+INS[c_?indexFreeQ * a_]   := c * INS[a];
+
+(* Plus: INS is linear — each summand gets its own namespace *)
+INS[a_Plus] := INS /@ a;
+
+(* Products of sums expand before dummy-index renaming *)
+INS[a_Times] /; !FreeQ[a, _Plus] := INS[Expand[a]];
+
+(* Times: rename dummies in b before multiplying *)
+INS /: HoldPattern[INS[a_] * INS[b_]] :=
+  INS[a * resolveIndexConflicts[a, b]];
+
+(* Power: INS[x]^n unfolds to iterated Times, triggering rename at each step *)
+INS /: HoldPattern[INS[a_]^n_Integer?Positive] /; n >= 2 :=
+  INS[a] * INS[a]^(n - 1);
+
+(* NC chain: resolve each adjacent INS pair left-to-right *)
+INS /: HoldPattern[NC[x___, INS[a_], INS[b_], y___]] :=
+  NC[x, INS[NC[a, resolveIndexConflicts[a, b]]], y];
+
+Unprotect[Dot];
+INS /: HoldPattern[Dot[x___, INS[a_], INS[b_], y___]] :=
+  Dot[x, INS[Dot[a, resolveIndexConflicts[a, b]]], y];
+Protect[Dot];
+
+(* =================================================================== *)
+(*  Dirac-chain normaliser                                              *)
 (*  (1) gamma5 = P_R - P_L                                                      *)
 (*  (2) move ghost fields to the left past dirac matrices                       *)
 (*  (3) move projectors right past gammas and collapse products:                *)
@@ -236,9 +326,10 @@ renormMix[h1_, h2_, dZ11_, dZ12_, dZ21_, dZ22_] := {
    h2          :> (dZ21/2) h1 + (1 + dZ22/2) h2};
    
 (* ---- functional derivative ---- *)
-fdiff[lg_, a_Plus] := fdiff[lg, #] & /@ a;
-fdiff[lg_, c_ * x_] := c fdiff[lg, x] /; STindepQ[c];
-fdiff[lg_, c_] := 0 /; STindepQ[c];
+fdiff[lg_, a_Plus]     := fdiff[lg, #] & /@ a;
+(*fdiff[lg_, INS[x_]]    := INS[fdiff[lg, x]];*)
+fdiff[lg_, c_ * x_]   := c fdiff[lg, x] /; STindepQ[c];
+fdiff[lg_, c_]         := 0 /; STindepQ[c];
 fdiff[lg_, Times[a_, b__]] := fdiff[lg, a] Times[b] + a fdiff[lg, Times[b]];
 fdiff[lg_, Power[b_, n_Integer?Positive]] := n b^(n - 1) fdiff[lg, b];
 
@@ -274,16 +365,8 @@ functionalD[L_, legs_] := Module[{e = Expand[L]},
 
 (* tree-level vertex:  i * delta^n S / delta phi... , contracted, Dirac- and    *)
 (* index-canonicalised *)
-feynmanRule[L_, legs_] := I canonical[diracSimplify[contract[functionalD[L, legs]]]];
-
-(* =================================================================== *)
-(*  Quantum numbers                                                     *)
-(* =================================================================== *)
-
-(* ElectricCharge[f] is real for any f; for fermions it stays symbolic *)
-Unprotect[Conjugate];
-Conjugate[ElectricCharge[f_]] := ElectricCharge[f];
-Protect[Conjugate];
+RemoveINS[e_] := Module[{L}, (e /. {INS -> L}) /. {L[a_] -> a}]
+feynmanRule[l_, legs_] := I canonical[diracSimplify[contract[functionalD[RemoveINS@l, legs]]]];
 
 (* =================================================================== *)
 (*  Gauge multiplet infrastructure                                      *)
@@ -326,7 +409,7 @@ DeclareGaugeDoublet[sym_Symbol, lbl_, expr_] := Module[
   If[!SameQ @@ yValues,
     Message[DeclareGaugeDoublet::hypercharge, sym, yValues]; Return[$Failed]];
   Hypercharge[sym] = First[yValues];
-  GaugeMultExpansion[sym] = (sym :> expr);
+  GaugeMultExpansion[sym] = (sym :> Col @@ comps);
   Format[sym] = lbl;
   sym
 ];
@@ -347,19 +430,40 @@ DeclareGaugeSinglet[sym_Symbol, lbl_, expr_] := Module[
 ];
 
 (* =================================================================== *)
+(*  Col: SU(2) column-vector wrapper                                   *)
+(*  Not Listable — Plus/Times never distribute into doublet components  *)
+(* =================================================================== *)
+
+Col /: Col[a__] + Col[b__] := Col @@ MapThread[Plus, {{a}, {b}}];
+Col /: c_ * Col[a__]       := Col @@ (c * {a});
+
+(* mat . Col[v] — explicit matrix acting on column *)
+Unprotect[Dot];
+Col /: Dot[mat_List, Col[v__]]  := Col @@ (mat . {v});
+(* Col . mat — row context (result of ConjugateTranspose) *)
+Col /: Dot[Col[a__], mat_List]  := Col @@ ({a} . mat);
+(* Col . Col — inner product -> scalar *)
+Col /: Dot[Col[a__], Col[b__]]  := {a} . {b};
+Protect[Dot];
+
+Unprotect[Conjugate];
+Col /: Conjugate[Col[v__]] := Col @@ (Conjugate /@ {v});
+Protect[Conjugate];
+
+(* =================================================================== *)
 (*  SU(2) and U(1)_Y generators                                        *)
 (* =================================================================== *)
 
-(* sigma[a]/2 acting on an explicit doublet vector *)
-SU2T[a_][vec_List]         := (1/2) sigma[a] . vec;
+(* sigma[a]/2 acting on a Col doublet *)
+SU2T[a_][col_Col] := (1/2) sigma[a] . col;
 (* SU(2) generator vanishes on singlets *)
 SU2T[GI[_]][sym_?su2SingletQ]  := 0;
 SU2T[GI[_]][f_] /; su2SingletQ[Head[f]] := 0;
 
 (* U(1)_Y generator: return hypercharge of the multiplet.
    Split bare-symbol vs indexed to avoid Hypercharge[sym[idx]] when idx is present. *)
-U1Y[sym_Symbol] /; su2DoubletQ[sym] || su2SingletQ[sym] := Hypercharge[sym];
-U1Y[f_[___]]    /; su2DoubletQ[f]   || su2SingletQ[f]   := Hypercharge[f];
+U1Y[sym_Symbol] /; su2DoubletQ[sym] || su2SingletQ[sym] := Hypercharge[sym]*sym;
+U1Y[f_[inds___]]    /; su2DoubletQ[f]   || su2SingletQ[f]   := Hypercharge[f]*f[inds];
 
 (* =================================================================== *)
 (*  Covariant derivative and field strength declarations                *)
@@ -394,7 +498,6 @@ ExplFieldStr[e_]  := e /. (Last /@ DownValues[FieldStrExpansion]);
 (*  Display formatting (notebook output)                               *)
 (* =================================================================== *)
 
-properIndexStructureQ[inds__] := And @@ (MemberQ[$indices, Head[#]] & /@ {inds});
 
 Unprotect[MakeBoxes];
 
@@ -404,7 +507,8 @@ $IdxNames = {
   GI -> {"a", "b", "c", "d", "e", "f", "g", "h"}
 };
 
-IdxBox[type_][n_Integer] := Module[
+(* indexType[i[n]] — dummy/symbolic slot: look up pretty name (μ, a, i, …) *)
+IdxBox[type_][i[n_Integer]] := Module[
   {names = type /. $IdxNames},
   If[n <= Length[names],
     names[[n]],
@@ -412,7 +516,10 @@ IdxBox[type_][n_Integer] := Module[
   ]
 ];
 
-IdxBox[type_][n_] := RowBox[{ToString[type], "[", ToString[n], "]"}];
+(* indexType[n] bare integer — display the number directly *)
+IdxBox[type_][n_Integer] := ToString[n];
+
+IdxBox[type_][n_] := RowBox[{ToString[type], "[", ToString[n, InputForm], "]"}];
 
 MakeBoxes[h_[x_],                     StandardForm] /;MemberQ[$indices,h]:= IdxBox[h][x];
 MakeBoxes[h_[inds__], StandardForm] /; properIndexStructureQ[inds] :=
