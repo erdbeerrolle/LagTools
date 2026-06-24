@@ -64,13 +64,20 @@ DeclareRealParam[v, "v"];
 
 (*Real physical parameters*)
 DeclareRealParam[ee, Subscript["e", "EM"]];
-DeclareRealParam[sw, Subscript["s", "w"]];
 DeclareRealParam[cw, Subscript["c", "w"]];
 DeclareRealParam[MW, Subscript["M", "W"]];
 DeclareRealParam[MZ, Subscript["M", "Z"]];
 DeclareRealParam[MH, Subscript["M", "H"]];
 DeclareRealParam[xiW, Subscript["\[Xi]", "W"]];
 DeclareRealParam[xiZ, Subscript["\[Xi]", "Z"]];
+
+(* sw^2 = 1-cw^2 as shorthand without having to do transformations between the two *)
+sw = Sqrt[1 - cw^2];
+
+Unprotect[MakeBoxes];
+MakeBoxes[Sqrt[1 - cw^2],  StandardForm] := SubscriptBox["s", "w"];
+MakeBoxes[1 - cw^2,        StandardForm] := SuperscriptBox[SubscriptBox["s", "w"], "2"];
+Protect[MakeBoxes];
 
 DeclareRealParam[ml, Subscript["m", "l"]];
 DeclareRealParam[mu, Subscript["m", "u"]];
@@ -178,6 +185,8 @@ paramSubs = {
 (* Diagonal Yukawa in mass-eigenstate basis *)
 diagMassMatSubs[y_,m_] := Flatten[Table[
   y[FI[i], FI[j]] :> If[i == j, Sqrt[2] m[FI[i]]*ee/(2 sw MW), 0], {i, 1, 3}, {j, 1, 3}]]
+
+mixingSubs = {}
 
 toPhysical = Join[gaugeFieldRotation, paramSubs, diagMassMatSubs[yl,ml],diagMassMatSubs[yu,mu],diagMassMatSubs[yd,md]];
 
