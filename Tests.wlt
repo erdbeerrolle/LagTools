@@ -116,9 +116,9 @@ VerificationTest[diracSimplify[PL ** PR],          0,         TestID -> "ds-PLPR
 VerificationTest[diracSimplify[bar[el] ** ga[LI[i[1]]] ** ga5 ** el],
    bar[el] ** ga[LI[i[1]]] ** PR ** el - bar[el] ** ga[LI[i[1]]] ** PL ** el,
    TestID -> "ds-ga5-expand"];
-(* completeness P_L + P_R = 1 collapses a matched sum *)
-VerificationTest[diracSimplify[
-      bar[el] ** ga[LI[i[1]]] ** PL ** el + bar[el] ** ga[LI[i[1]]] ** PR ** el],
+(* completeness P_L + P_R = 1 collapses a matched sum — now via recombineProjectors *)
+VerificationTest[recombineProjectors[diracSimplify[
+      bar[el] ** ga[LI[i[1]]] ** PL ** el + bar[el] ** ga[LI[i[1]]] ** PR ** el]],
    bar[el] ** ga[LI[i[1]]] ** el,
    TestID -> "ds-completeness"];
 (* ghost floats LEFT past a gamma (Bug-2 regression: gamma has head ga) *)
@@ -137,7 +137,7 @@ VerificationTest[diracSimplify[PL ** cc ** ga[LI[i[1]]]],
 (* Substitute only the right-handed leg el (no bar) so the test isolates    *)
 (* the el -> (1+dZL)PL el + (1+dZR)PR el rule and the chain distribution.    *)
 VerificationTest[
-   diracSimplify[(ga[LI[i[1]]] ** el) /. renorm[el, dZL, dZR]] // Expand,
+   recombineProjectors[diracSimplify[(ga[LI[i[1]]] ** el) /. renorm[el, dZL, dZR]]] // Expand,
    NC[ga[LI[i[1]]],el]+dZL NC[ga[LI[i[1]]],PL,el]+dZR NC[ga[LI[i[1]]],PR,el],
    TestID -> "renorm-el-leg"];
 

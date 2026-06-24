@@ -293,13 +293,16 @@ diracSimplify[e_] := Module[{x},
       NC[a___, PR, PR, b___] :> NC[a, PR, b],
       NC[a___, PL, PR, b___] :> 0,
       NC[a___, PR, PL, b___] :> 0};
-   (* next step is not performant *)
-   (*x = Expand[x] //. {
-      Plus[u___, c_. * NC[gg___, PL, hh___],
-                 c_. * NC[gg___, PR, hh___], v___] :>
-         Plus[u, v, c NC[gg, hh]],
-      Plus[u___, c_. * PL, c_. * PR, v___] :> Plus[u, v, c]};*)
    x];
+
+(* Collapse P_L + P_R -> 1 in sums of Dirac chains.  Expensive on large
+   expressions; call explicitly after feynman-rule extraction, not during
+   simplification of the full Lagrangian. *)
+recombineProjectors[e_] := Expand[e] //. {
+   Plus[u___, c_. * NC[gg___, PL, hh___],
+              c_. * NC[gg___, PR, hh___], v___] :>
+      Plus[u, v, c NC[gg, hh]],
+   Plus[u___, c_. * PL, c_. * PR, v___] :> Plus[u, v, c]};
    
 (* ---- chiral field renormalisation ---- *)
 (*   psi -> (1+dZL) P_L psi + (1+dZR) P_R psi                                   *)
@@ -371,7 +374,7 @@ functionalD[L_, legs_] := Module[{e = Expand[L]},
 (* tree-level vertex:  i * delta^n S / delta phi... , contracted, Dirac- and    *)
 (* index-canonicalised *)
 RemoveINS[e_] := Module[{L}, (e /. {INS -> L}) /. {L[a_] -> a}]
-feynmanRule[l_, legs_] := I canonical[diracSimplify[contract[functionalD[RemoveINS@l, legs]]]];
+feynmanRule[l_, legs_] := I recombineProjectors @ canonical @ diracSimplify @ contract @ functionalD[RemoveINS@l, legs];
 
 (* =================================================================== *)
 (*  Gauge multiplet infrastructure                                      *)
