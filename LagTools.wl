@@ -63,7 +63,9 @@ oddQ[x_]   := fermionQ[x] || grassmannQ[x];
 commutingQ[x_]   := FreeQ[x, _?oddQ | _?diracMatQ];
 STindepQ[x_]     := FreeQ[x, _?fieldQ];
 diracScalarQ[x_] := FreeQ[x, _?fermionQ | _?diracMatQ];
-scalarQ[x_] := diracScalarQ[x] && FreeQ[x, _?su2DoubletQ];
+su2MatQ[_]        := False;
+su2MatQ[sigma[_]] := True;
+scalarQ[x_] := diracScalarQ[x] && FreeQ[x, _?su2DoubletQ] && FreeQ[x, _?su2MatQ];
 
 properIndexStructureQ[inds__] := And @@ (MemberQ[$indices, Head[#]] & /@ {inds});
 
@@ -121,6 +123,7 @@ bar[PR ** f_] := bar[f] ** PL;
 (*  CT reverses the NC chain and applies † to each factor;             *)
 (*  ga0 factors cancel pairwise via the NC rule ga0.ga0 = 1            *)
 Unprotect[ConjugateTranspose];
+ConjugateTranspose[sigma[a___]] := sigma[a];  (* Pauli matrices are Hermitian *)
 ConjugateTranspose[x_?scalarQ] := Conjugate[x];
 ConjugateTranspose[ga[mu_]]     := NC[ga0, ga[mu], ga0];
 ConjugateTranspose[ga5]         := NC[-ga0, ga5, ga0];
@@ -138,6 +141,8 @@ ConjugateTranspose[c_ * x_]     := Conjugate[c] ConjugateTranspose[x] /; scalarQ
 ConjugateTranspose[0]           := 0;
 ConjugateTranspose[d[a_][b_]] := d[a][ConjugateTranspose[b]];
 ConjugateTranspose[col_Col]   := Col @@ (Conjugate /@ List@@col);
+ConjugateTranspose[INS[a_]] := INS[ConjugateTranspose[a]];
+ConjugateTranspose[ConjugateTranspose[a_]]:=a;
 Protect[ConjugateTranspose];
 
 Unprotect[Conjugate];
@@ -248,8 +253,8 @@ INS[c_?indexFreeQ * a_]   := c * INS[a];
 (* Plus: INS is linear — each summand gets its own namespace *)
 INS[a_Plus] := INS /@ a;
 
-(* Products of sums expand before dummy-index renaming *)
-INS[a_Times] /; !FreeQ[a, _Plus] := INS[Expand[a]];
+(* Products of sums expand before dummy-index renaming — only when Plus is a direct factor *)
+INS[a_Times] /; MemberQ[List @@ a, _Plus] := INS[Expand[a]];
 
 (* Times: rename dummies in b before multiplying *)
 INS /: HoldPattern[INS[a_] * INS[b_]] :=
@@ -289,11 +294,11 @@ diracSimplify[e_] := Module[{x},
       NC[a___, PL, PR, b___] :> 0,
       NC[a___, PR, PL, b___] :> 0};
    (* next step is not performant *)
-   x = Expand[x] //. {
+   (*x = Expand[x] //. {
       Plus[u___, c_. * NC[gg___, PL, hh___],
                  c_. * NC[gg___, PR, hh___], v___] :>
          Plus[u, v, c NC[gg, hh]],
-      Plus[u___, c_. * PL, c_. * PR, v___] :> Plus[u, v, c]};
+      Plus[u___, c_. * PL, c_. * PR, v___] :> Plus[u, v, c]};*)
    x];
    
 (* ---- chiral field renormalisation ---- *)
