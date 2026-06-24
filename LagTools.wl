@@ -529,7 +529,7 @@ MakeBoxes[h_[inds__], StandardForm] /; properIndexStructureQ[inds] :=
            Cases[{inds}, FI[x_] :> IdxBox[FI][x]]],
     RowBox[Cases[{inds}, GI[x_] :> IdxBox[GI][x]]]
   ];
-MakeBoxes[f_,                 StandardForm] /; fieldQ[f] && Head[f] =!= bar  := ToString[f, StandardForm];
+MakeBoxes[f_,                 StandardForm] /; fieldQ[f] && Head[f] =!= bar := ToString[f];
 MakeBoxes[bar[f_],            StandardForm] := OverscriptBox[MakeBoxes[f, StandardForm], "_"];
 MakeBoxes[d[LI[x_]][expr_],   StandardForm] := RowBox[{"(", SubscriptBox["\[PartialD]", IdxBox[LI][x]], "\[ThinSpace]", MakeBoxes[expr, StandardForm],")"}];
 MakeBoxes[ga,   StandardForm] := "\[Gamma]";
