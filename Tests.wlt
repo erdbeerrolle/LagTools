@@ -209,7 +209,7 @@ DeclareRealParam[v];
 
 (* Higgs-like bosonic doublet: lower component (v+HH+I chi)/Sqrt[2]   *)
 (* Both HH and chi have Q=0, T3=-1/2 -> Y = 2*(0+1/2) = 1            *)
-DeclareGaugeDoublet[Phi, "\[Phi]", {phip, (v + HH + I*chi)/Sqrt[2]}];
+DeclareGaugeDoublet[Phi, "\[Phi]", Phi :> {phip, (v + HH + I*chi)/Sqrt[2]}];
 
 VerificationTest[su2DoubletQ[Phi],  True,  TestID -> "doublet-su2DoubletQ"];
 VerificationTest[bosonQ[Phi],       True,  TestID -> "doublet-bosonQ-inferred"];
@@ -221,7 +221,7 @@ VerificationTest[su2DoubletQ[Phi[FI[i[1]]]], True, TestID -> "doublet-indexed-pr
 VerificationTest[bosonQ[Phi[LI[i[1]]]],      True, TestID -> "doublet-LI-predicate"];
 
 (* Fermionic doublet: lower component el, Q=ElectricCharge[el] (symbolic) *)
-DeclareGaugeDoublet[LeptL, Subscript["L", "L"], {nu, el}];
+DeclareGaugeDoublet[LeptL, Subscript["L", "L"], LeptL :> {nu, el}];
 
 VerificationTest[su2DoubletQ[LeptL], True,  TestID -> "doublet-LeptL-su2"];
 VerificationTest[fermionQ[LeptL],    True,  TestID -> "doublet-LeptL-fermionic"];
@@ -233,7 +233,7 @@ VerificationTest[Hypercharge[LeptL], 2*(ElectricCharge[el] + 1/2),
 DeclareComplexBoson[hplus, hminus];  (* Q[hplus]=1, Q[hminus]=-1 *)
 (* lower component hplus+hminus: Y from hplus = 2*(1+1/2)=3, from hminus = 2*(-1+1/2)=-1 *)
 VerificationTest[
-   DeclareGaugeDoublet[BadDoublet, "bad", {hplus, hplus + hminus}],
+   DeclareGaugeDoublet[BadDoublet, "bad", BadDoublet :> {hplus, hplus + hminus}],
    $Failed,
    {DeclareGaugeDoublet::hypercharge},
    TestID -> "doublet-hypercharge-inconsistency-error"];
@@ -242,10 +242,7 @@ VerificationTest[
 (* 12. DeclareGaugeSinglet                                             *)
 (* ================================================================== *)
 
-(* Function-valued expansion: FermR[head][FI[a]] := PR ** head[FI[a]] *)
-FermR[head_][FI[a_]] := NC[PR, head[FI[a]]];
-
-DeclareGaugeSinglet[LeptR, Subscript["l", "R"], FermR[el]];
+DeclareGaugeSinglet[LeptR, Subscript["l", "R"], LeptR[FI[a_]] :> PR**el[FI[a]]];
 
 VerificationTest[su2SingletQ[LeptR],   True,  TestID -> "singlet-su2SingletQ"];
 VerificationTest[fermionQ[LeptR],      True,  TestID -> "singlet-fermionic"];
@@ -351,6 +348,16 @@ VerificationTest[
    ExplGaugeMult[HH + d[LI[i[1]]][HH]],
    HH + d[LI[i[1]]][HH],
    TestID -> "explMult-passthrough"];
+
+(* indexed fermionic doublet: FI[i[1]] must propagate into each component,
+   not be left as a stray argument on the Col (regression for bug where
+   FI[1] was baked in during DeclareGaugeDoublet and the actual index dropped) *)
+DeclareFermion[uq, "u"]; DeclareFermion[dq, "d"];
+DeclareGaugeDoublet[QuarkL, Subscript["Q", "L"], QuarkL[FI[a_]] :> {NC[PL, uq[FI[a]]], NC[PL, dq[FI[a]]]}];
+VerificationTest[
+   bar[QuarkL[FI[i[1]]]] // ExplGaugeMult,
+   bar[Col[NC[PL, uq[FI[i[1]]]], NC[PL, dq[FI[i[1]]]]]],
+   TestID -> "explMult-doublet-indexed-fi"];
 
 (* ================================================================== *)
 (* 17. INS (IndexNamespace)                                            *)

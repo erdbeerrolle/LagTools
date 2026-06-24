@@ -383,48 +383,40 @@ su2SingletQ[h_[___]] /; h =!= bar := su2SingletQ[h];
 fieldSymbolsIn[expr_] :=
   DeleteDuplicates @ Cases[{expr}, x_ /; AtomQ[x] && fieldQ[x], Infinity, Heads -> True];
 
-(* Probe a possibly function-valued expression with a dummy FI index *)
-probeExpr[expr_] :=
-  If[AtomQ[expr] || ListQ[expr], expr, Quiet[expr[FI[1]]]];
-
 DeclareGaugeDoublet::nofields    = "No field symbols found in lower component of doublet `1`.";
 DeclareGaugeDoublet::hypercharge = "Inconsistent hypercharges in lower component of `1`: `2`.";
 
-DeclareGaugeDoublet[sym_Symbol, lbl_, expr_] := Module[
-  {comps, lowerExpr, lowerFields, yValues},
-  (* Resolve SU(2) component list: explicit list or probe function *)
-  comps = If[ListQ[expr], expr, probeExpr[expr]];
+DeclareGaugeDoublet[sym_Symbol, lbl_, rule_RuleDelayed] := Module[
+  {comps, lowerFields, yValues},
+  comps = rule[[2]];
   If[!MatchQ[comps, {_, _}],
     Message[DeclareGaugeDoublet::nofields, sym]; Return[$Failed]];
-  lowerExpr = comps[[2]];
   su2DoubletQ[sym] = True;
-  (* Infer bosonic/fermionic from all component fields *)
   With[{fs = fieldSymbolsIn[comps]},
     If[AnyTrue[fs, fermionQ], fermionQ[sym] = True, bosonQ[sym] = True]];
   (* Hypercharge from lower component (T3 = -1/2): Y = 2*(Q + 1/2) *)
-  lowerFields = fieldSymbolsIn[lowerExpr];
+  lowerFields = fieldSymbolsIn[comps[[2]]];
   If[lowerFields === {},
     Message[DeclareGaugeDoublet::nofields, sym]; Return[$Failed]];
   yValues = 2*(ElectricCharge[#] + 1/2) & /@ lowerFields;
   If[!SameQ @@ yValues,
     Message[DeclareGaugeDoublet::hypercharge, sym, yValues]; Return[$Failed]];
   Hypercharge[sym] = First[yValues];
-  GaugeMultExpansion[sym] = (sym :> Col @@ comps);
+  GaugeMultExpansion[sym] = ReplacePart[rule, 2 -> Col @@ comps];
   Format[sym] = lbl;
   sym
 ];
 
-DeclareGaugeSinglet[sym_Symbol, lbl_, expr_] := Module[
-  {probed, fields},
+DeclareGaugeSinglet[sym_Symbol, lbl_, rule_RuleDelayed] := Module[
+  {fields},
   su2SingletQ[sym] = True;
-  probed = probeExpr[expr];
-  fields = fieldSymbolsIn[probed];
+  fields = fieldSymbolsIn[rule[[2]]];
   If[AnyTrue[fields, fermionQ], fermionQ[sym] = True, bosonQ[sym] = True];
   (* Inherit charge from the underlying field unless sym IS that field *)
   If[fields =!= {} && First[fields] =!= sym,
     ElectricCharge[sym] = ElectricCharge[First[fields]]];
   Hypercharge[sym] = 2 * ElectricCharge[sym];  (* T3 = 0: Y = 2Q *)
-  GaugeMultExpansion[sym] = (sym :> expr);
+  GaugeMultExpansion[sym] = rule;
   Format[sym] = lbl;
   sym
 ];
@@ -436,6 +428,8 @@ DeclareGaugeSinglet[sym_Symbol, lbl_, expr_] := Module[
 
 Col /: Col[a__] + Col[b__] := Col @@ MapThread[Plus, {{a}, {b}}];
 Col /: c_ * Col[a__]       := Col @@ (c * {a});
+Col /: c_ ** Col[a__]      := Col @@ (c ** {a});
+(*Col /: bar[Col[args___]]   := Col @@ (bar /@ args);*)
 
 (* mat . Col[v] — explicit matrix acting on column *)
 Unprotect[Dot];
