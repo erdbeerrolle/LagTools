@@ -59,13 +59,18 @@ With[{preds={bosonQ, fermionQ, grassmannQ}},
 fieldQ[x_] := bosonQ[x] || fermionQ[x] || grassmannQ[x];
 oddQ[x_]   := fermionQ[x] || grassmannQ[x];
 
+(* FreeQ descends into ElectricCharge[f] and sees f, so erase metadata wrappers before scanning *)
+$metadataP = _ElectricCharge | _Hypercharge;
+stripMeta[x_] := x /. $metadataP :> 1;
+
 (*---- composite predicates with deep-scan ----*)
-commutingQ[x_]   := FreeQ[x, _?oddQ | _?diracMatQ];
-STindepQ[x_]     := FreeQ[x, _?fieldQ];
-diracScalarQ[x_] := FreeQ[x, _?fermionQ | _?diracMatQ];
+commutingQ[x_]   := FreeQ[stripMeta[x], _?oddQ | _?diracMatQ];
+STindepQ[x_]     := FreeQ[stripMeta[x], _?fieldQ];
+diracScalarQ[x_] := FreeQ[stripMeta[x], _?fermionQ | _?diracMatQ];
 su2MatQ[_]        := False;
 su2MatQ[sigma[_]] := True;
-scalarQ[x_] := diracScalarQ[x] && FreeQ[x, _?su2DoubletQ] && FreeQ[x, _?su2MatQ];
+su2ScalarQ[x_] := FreeQ[x, _?su2MatQ | _?su2DoubletQ];
+scalarQ[x_] := diracScalarQ[x] && su2ScalarQ[x];
 
 properIndexStructureQ[inds__] := And @@ (MemberQ[$indices, Head[#]] & /@ {inds});
 
@@ -82,7 +87,7 @@ kd3[h_[i[a_]], h_[i[a_]]] /; IntegerQ[a] && MemberQ[h, {FI, GI}] := 3;
 kd3[h_[a_],h_[a_]] /; IntegerQ[a] && MemberQ[h, {FI, GI}] := 1;
 
 (* ---- SU(2) Levi-Civita / structure constant: eps3[a,b,c] = epsilon^{abc} ---- *)
-eps3[h_[a_Integer], h_[b_Integer], h_[c_Integer]] /; MemberQ[h, {GI}] := Signature[{a, b, c}];
+eps3[GI[a_Integer], GI[b_Integer], GI[c_Integer]] := Signature[{a, b, c}];
 
 (* ---- Pauli matrices sigma[1,2,3] as explicit 2x2 matrices ---- *)
 sigma[GI[1]] = {{0, 1}, {1, 0}};
@@ -101,7 +106,7 @@ NC[x___, c_?commutingQ, y___]    := c * NC[x, y];
 NC[x___, c_?commutingQ*d_, y___] := c * NC[x, d, y];
 NC[x___, NC[z___], y___]         := NC[x, z, y];
 NC[x___, l_List, y___]           := NC[x, #, y]& /@ l;
-NC[x___, col_Col, y___]          := Col @@ (NC[x, #, y]& /@ List@@col);
+(*NC[x___, col_Col, y___]          := Col @@ (NC[x, #, y]& /@ List@@col);*)
 NC[x___, ga0, ga0, y___] := NC[x, y];
 
 (* ** delegates to NC *)
@@ -152,6 +157,13 @@ Conjugate[d[a_][b_]] := d[a][Conjugate[b]];
 Conjugate[INS[a___]] := INS[Conjugate[a]];
 Protect[Conjugate];
 
+Unprotect[Dot];
+Dot[x___, a_Plus, y___] := Dot[x, #, y]& /@ a /; {x,y} =!= {};
+Dot[x___, c_?su2ScalarQ * a_, y___] := c*Dot[x,a,y] /; {x,y} =!= {};
+Dot[x___, c_?su2ScalarQ ** a_, y___] := c**Dot[x,a,y] /; {x,y} =!= {};
+Dot[x___, a_**c_?su2ScalarQ, y___] := Dot[x,a,y]**c /; {x,y} =!= {};
+Protect[Dot];
+
 (* ---- derivative d_mu ---- *)
 d[mu_][a_Plus] := d[mu] /@ a;
 d[mu_][Times[a_, b__]] :=  d[mu][a] Times[b] + a d[mu][Times[b]];
@@ -194,9 +206,10 @@ canonicalizeOneIndexType[e_, indexType_] := Module[{dum, n},
 ];
 
 (* canonical: normalize via Expand[INS[...]] then canonicalize dummy names *)
+canonicalizeINS[x_?indexFreeQ]:=x;
 canonicalizeINS[INS[x_]] := INS[Fold[canonicalizeOneIndexType, x, $indices]];
 canonicalizeINS[e_Plus]  := canonicalizeINS /@ e;
-canonicalizeINS[e_]      := e;
+canonicalizeINS[e_Times]  := canonicalizeINS /@ e;
 canonical[e_] := canonicalizeINS[Expand[INS[e]]];
 
 (* perform sum over gauge indices *)
@@ -206,9 +219,12 @@ SumOverIndices[expr_, dum_List] :=
   Sum[SumOverIndices[expr /. d :> Head[d][a], rest], {a, 1, 3}]];
 
 (* GISum: sum GI dummy indices; INS wrapper is preserved in each summand *)
-GISum[INS[x_]] := With[{dum = dummyIndices[GI][x]}, SumOverIndices[INS[x], dum]];
-GISum[e_Plus]  := GISum /@ e;
-GISum[e_]      := GISum[INS[e]];
+GISumINS[x_?indexFreeQ]:=x;
+GISumINS[INS[x_]] := With[{dum = dummyIndices[GI][x]}, SumOverIndices[INS[x], dum]];
+GISumINS[e_Plus]  := GISumINS /@ e;
+GISumINS[e_Times] := GISumINS /@ e;
+(*GISumINS[c_*INS[x_]] := With[{dum = dummyIndices[GI][x]}, If[Length[dum]===0,c*INS[x],c*SumOverIndices[INS[x], dum]]];*)
+GISum[e_]      := GISumINS[Expand[INS[e]]];
 
 (* =================================================================== *)
 (*  IndexNamespace (INS): expression wrapper that prevents dummy-index  *)
@@ -250,11 +266,15 @@ INS[INS[a_]]:=INS[a];
 INS[c_?indexFreeQ]        := c;
 INS[c_?indexFreeQ * a_]   := c * INS[a];
 
+(* No dummy indices anywhere: all indices are free, wrapper is a no-op *)
+(*INS[a_] /; And @@ (dummyIndices[#][a] === {} & /@ $indices) := a;*)
+
 (* Plus: INS is linear — each summand gets its own namespace *)
 INS[a_Plus] := INS /@ a;
 
 (* Products of sums expand before dummy-index renaming — only when Plus is a direct factor *)
 INS[a_Times] /; MemberQ[List @@ a, _Plus] := INS[Expand[a]];
+INS[Power[a_Plus,b_?NumericQ]] := INS[Expand[Power[a,b]]];
 
 (* Times: rename dummies in b before multiplying *)
 INS /: HoldPattern[INS[a_] * INS[b_]] :=
@@ -349,6 +369,8 @@ fdiff[{f_, xi_, p_}, HoldPattern[d[m_][z_]]] :=
 (* delta phi_LI1 / delta phi_LI2 *)
 fdiff[{f_, LI[a_], p_}, f_[LI[b_]]] := g[LI[a], LI[b]];
 fdiff[{f_, h_[a_], p_}, f_[h_[b_]]] := kd3[h[a], h[b]] /; MemberQ[{GI, FI}, h];
+(* delta bar[f]_h1 / delta bar[f]_h2  (anti-fermion with flavor/color index) *)
+fdiff[{bar[f_], h_[a_], p_}, bar[f_[h_[b_]]]] := kd3[h[a], h[b]] /; MemberQ[{GI, FI}, h];
 (* delta phi / delta phi *)
 fdiff[{f_, None, _}, f_] := 1 /; fieldQ[f];
 (* delta theta / delta theta  (gauge parameters: bosonic, no Grassmann sign) *)
@@ -435,8 +457,8 @@ DeclareGaugeSinglet[sym_Symbol, lbl_, rule_RuleDelayed] := Module[
 (* =================================================================== *)
 
 Col /: Col[a__] + Col[b__] := Col @@ MapThread[Plus, {{a}, {b}}];
-Col /: c_ * Col[a__]       := Col @@ (c * {a});
-Col /: c_ ** Col[a__]      := Col @@ (c ** {a});
+Col /: c_?scalarQ * Col[a__]       := Col @@ (c * {a});
+Col /: c_?scalarQ ** Col[a__]      := Col @@ (c ** {a});
 (*Col /: bar[Col[args___]]   := Col @@ (bar /@ args);*)
 
 (* mat . Col[v] — explicit matrix acting on column *)
@@ -447,6 +469,9 @@ Col /: Dot[Col[a__], mat_List]  := Col @@ ({a} . mat);
 (* Col . Col — inner product -> scalar *)
 Col /: Dot[Col[a__], Col[b__]]  := {a} . {b};
 Protect[Dot];
+
+NC[c1_Col,y___,c2_Col] := Sum[NC[c1[[sumidx1]],y,c2[[sumidx2]]],{sumidx1,1,2},{sumidx2,1,2}] /; su2ScalarQ[y];
+NC[c1_Col,c2_Col] := Sum[NC[c1[[sumidx1]],c2[[sumidx2]]],{sumidx1,1,2},{sumidx2,1,2}];
 
 Unprotect[Conjugate];
 Col /: Conjugate[Col[v__]] := Col @@ (Conjugate /@ {v});
@@ -544,6 +569,12 @@ MakeBoxes[kd3,  StandardForm] := "\[Delta]";
 MakeBoxes[eps3, StandardForm] := "\[Epsilon]";
 MakeBoxes[sigma[n_], StandardForm] := SuperscriptBox["\[Sigma]", ToString[n]];
 MakeBoxes[expr_NC, StandardForm] := RowBox[MakeBoxes[#, StandardForm] & /@ List @@ expr];
+
+(* Conjugate: single symbol -> symbol^*, compound -> (...)^* *)
+MakeBoxes[Conjugate[s_Symbol], StandardForm] :=
+  SuperscriptBox[MakeBoxes[s, StandardForm], "*"];
+MakeBoxes[Conjugate[expr_], StandardForm] :=
+  SuperscriptBox[RowBox[{"(", MakeBoxes[expr, StandardForm], ")"}], "*"];
 
 (* ChargeConj: single symbol -> symbol^C, compound -> (...)^C *)
 MakeBoxes[ChargeConj[s_Symbol], StandardForm] :=
