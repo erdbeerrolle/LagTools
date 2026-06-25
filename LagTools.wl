@@ -8,22 +8,25 @@
 (*  Col own every rule for how *general* operators act on them (UpValues);  *)
 (*  every operator owns its own rules (DownValues).                         *)
 (*                                                                          *)
-(*  The file is organised into the modules below in load order.  Each is    *)
-(*  self-contained (all definitions are delayed, single Global context) so   *)
-(*  it can later be split into its own file without changing behaviour:      *)
-(*    1. Fields        field/parameter declarations + predicate algebra      *)
-(*    2. DiracAlgebra  NC (**), bar, ConjugateTranspose, Dirac simplifiers   *)
-(*    3. IndexAlgebra  tensors g/kd3/eps3, d, contraction, INS namespace     *)
-(*    4. Gauge         sigma, Col, SU(2)/U(1) generators, multiplets, covD   *)
-(*    5. FeynmanRules  renormalisation, functional derivative, vertices      *)
-(*    6. Formatting    MakeBoxes display rules                               *)
+(*  The file is grouped into the modules below in load order.  Each is       *)
+(*  self-contained (all definitions are delayed, single Global context) and  *)
+(*  contiguous, so the split is a straight cut at each banner into the file  *)
+(*  named below (all at repo root); LagTools.wl then becomes a loader that   *)
+(*  Gets them in this order, keeping Get["LagTools.wl"] working unchanged.   *)
+(*    1. Fields.wl        field/parameter declarations + predicate algebra   *)
+(*    2. DiracAlgebra.wl  NC (**), bar, ConjugateTranspose, Dirac simplifiers*)
+(*    3. IndexAlgebra.wl  tensors g/kd3/eps3, d, contraction, INS namespace  *)
+(*    4. Gauge.wl         sigma, Col, SU(2)/U(1) generators, multiplets, covD*)
+(*    5. FeynmanRules.wl  renormalisation, functional derivative, vertices   *)
+(*    6. Formatting.wl    MakeBoxes display rules                            *)
 (* ====================================================================== *)
 
 If[TrueQ[$LagToolsLoaded], Return[]];
 $LagToolsLoaded = True;
 
 (* ====================================================================== *)
-(*  1. Fields — declarations and the predicate algebra                     *)
+(*  1. Fields                                            =>  Fields.wl       *)
+(*  Field/parameter declarations and the predicate algebra.                 *)
 (* ====================================================================== *)
 
 (*---- Dirac matrices ----*)
@@ -107,7 +110,8 @@ properIndexStructureQ[inds__] := And @@ (MemberQ[$indices, Head[#]] & /@ {inds})
 indexFreeQ[e_] := FreeQ[e, Alternatives @@ (Blank /@ $indices)];
 
 (* ====================================================================== *)
-(*  2. DiracAlgebra — NC (**), bar, ConjugateTranspose, Dirac simplifiers  *)
+(*  2. DiracAlgebra                                      =>  DiracAlgebra.wl *)
+(*  NC (**), bar, ConjugateTranspose, Dirac simplifiers.                    *)
 (*  (Col and INS handle these operators via UpValues in their own modules.) *)
 (* ====================================================================== *)
 
@@ -189,7 +193,8 @@ recombineProjectors[e_] := Expand[e] //. {
    Plus[u___, c_. * PL, c_. * PR, v___] :> Plus[u, v, c]};
 
 (* ====================================================================== *)
-(*  3. IndexAlgebra — index tensors, derivative, contraction, INS          *)
+(*  3. IndexAlgebra                                      =>  IndexAlgebra.wl *)
+(*  Index tensors (g/kd3/eps3), derivative d, contraction, INS namespace.   *)
 (* ====================================================================== *)
 
 (* ---- metric ----   g symmetric;  g_{mu}^{mu} = D = 4 *)
@@ -410,7 +415,8 @@ INSRule[lhs_, rhs_] :=
     Evaluate[newLhs] :> Evaluate[newRhs]];
 
 (* ====================================================================== *)
-(*  4. Gauge — Pauli matrices, Col doublets, SU(2)/U(1), multiplets, covD  *)
+(*  4. Gauge                                             =>  Gauge.wl        *)
+(*  Pauli matrices, Col doublets, SU(2)/U(1), multiplets, covD.             *)
 (* ====================================================================== *)
 
 (* ---- Pauli matrices sigma[1,2,3] as explicit 2x2 matrices ---- *)
@@ -556,7 +562,8 @@ ExplCovD[e_]      := e /. (Last /@ DownValues[CovDExpansion]);
 ExplFieldStr[e_]  := e /. (Last /@ DownValues[FieldStrExpansion]);
 
 (* ====================================================================== *)
-(*  5. FeynmanRules — renormalisation, functional derivative, vertices     *)
+(*  5. FeynmanRules                                      =>  FeynmanRules.wl *)
+(*  Renormalisation, functional derivative, vertices.                       *)
 (* ====================================================================== *)
 
 (* ---- chiral field renormalisation ---- *)
@@ -640,9 +647,10 @@ RemoveINS[e_] := Module[{L}, (e /. {INS -> L}) /. {L[a_] -> a}]
 feynmanRule[l_, legs_] := I recombineProjectors @ canonical @ diracSimplify @ contract @ functionalD[RemoveINS@l, legs];
 
 (* ====================================================================== *)
-(*  6. Formatting — MakeBoxes display rules (notebook output)              *)
-(*  Presentation layer: deliberately one centralised block of DownValues   *)
-(*  on MakeBoxes, regardless of which object each rule formats.             *)
+(*  6. Formatting                                        =>  Formatting.wl   *)
+(*  MakeBoxes display rules (notebook output).  Presentation layer:         *)
+(*  deliberately one centralised block of DownValues on MakeBoxes,         *)
+(*  regardless of which object each rule formats.                           *)
 (* ====================================================================== *)
 
 Unprotect[MakeBoxes];
