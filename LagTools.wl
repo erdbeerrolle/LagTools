@@ -237,23 +237,28 @@ GISum = IdxSum[GI];
 FISum = IdxSum[FI];
 
 (* =================================================================== *)
-(*  IndexNamespace (INS): expression wrapper that prevents dummy-index  *)
-(*  collisions when combining sub-expressions.                          *)
-(*                                                                      *)
-(*  INS[a] * INS[b]  = INS[a * b']     b' has conflicting dummies      *)
-(*  INS[a] ** INS[b] = INS[NC[a, b']]  renamed before combining        *)
+(*  IndexNamespace (INS)                                                *)
 (* =================================================================== *)
 
 IndexNamespace := INS;
 
-(* Collect all i[n] integer values for indexType present in expr *)
+(* --- General rules ------------------------------------------------- *)
+
+INS[INS[a_]]                               := INS[a];
+INS[c_?indexFreeQ]                         := c;
+INS[c_?indexFreeQ * a_]                    := c * INS[a];
+INS[a_Plus]                                := INS /@ a;
+INS[a_Times] /; MemberQ[List @@ a, _Plus] := INS[Expand[a]];
+INS[Power[a_Plus, b_?NumericQ]]            := INS[Expand[Power[a, b]]];
+
+INS /: HoldPattern[NC[INS[a_]]] := INS[NC[a]];
+bar[HoldPattern[INS[a_]]]       := INS[bar[a]];
+
+(* --- Conflict resolution algorithm --------------------------------- *)
+
 iValsOf[indexType_][expr_] :=
   DeleteDuplicates @ Cases[extractIndices[indexType][expr], i[n_Integer] :> n];
 
-(* Rename conflicting dummy indices so neither expr clashes with the other.
-   A dummy in expr1 that appears anywhere in expr2 is renamed in expr2, and
-   a dummy in expr2 that appears anywhere in expr1 is renamed in expr1.
-   Returns {newExpr1, newExpr2}. *)
 resolveIndexConflicts[expr1_, expr2_] :=
   Fold[
     Function[{pair, t},
@@ -263,8 +268,8 @@ resolveIndexConflicts[expr1_, expr2_] :=
         dum2 = dummyIndices[t][e2];
         idx1 = extractIndices[t][e1];
         idx2 = extractIndices[t][e2];
-        c1 = Select[dum1, MemberQ[idx2, First[#]] &];  (* dummies of e1 clashing with e2 -> rename in e1 *)
-        c2 = Select[dum2, MemberQ[idx1, First[#]] &];  (* dummies of e2 clashing with e1 -> rename in e2 *)
+        c1 = Select[dum1, MemberQ[idx2, First[#]] &];
+        c2 = Select[dum2, MemberQ[idx1, First[#]] &];
         If[c1 === {} && c2 === {},
           pair,
           allUsed = Union[iValsOf[t][e1], iValsOf[t][e2]];
@@ -283,52 +288,26 @@ resolveIndexConflicts[expr1_, expr2_] :=
     {expr1, expr2}, $indices
   ];
 
-INS[INS[a_]]:=INS[a];
+(* Avoid With[] in upvalue rules — it interacts badly with NC's HoldAll *)
+resolvedE1[a_, b_] := resolveIndexConflicts[a, b][[1]];
+resolvedE2[a_, b_] := resolveIndexConflicts[a, b][[2]];
 
-(* Index-free factors have no dummy-index conflicts — pull them out *)
-INS[c_?indexFreeQ]        := c;
-INS[c_?indexFreeQ * a_]   := c * INS[a];
+(* --- Times and Power ----------------------------------------------- *)
 
-(* Singleton: NC[INS[a]] -> INS[NC[a]] *)
-INS /: HoldPattern[NC[INS[a_]]] := INS[NC[a]];
-
-bar[HoldPattern[INS[a_]]] := INS[bar[a]]
-
-(* No dummy indices anywhere: all indices are free, wrapper is a no-op *)
-(*INS[a_] /; And @@ (dummyIndices[#][a] === {} & /@ $indices) := a;*)
-
-(* Plus: INS is linear — each summand gets its own namespace *)
-INS[a_Plus] := INS /@ a;
-
-(* Products of sums expand before dummy-index renaming — only when Plus is a direct factor *)
-INS[a_Times] /; MemberQ[List @@ a, _Plus] := INS[Expand[a]];
-INS[Power[a_Plus,b_?NumericQ]] := INS[Expand[Power[a,b]]];
-
-(* Thin extractors — avoid With[] in upvalue rules, which interacts badly with NC's HoldAll *)
-resolvedE1[a_, b_] := resolveIndexConflicts[a, b][[1]]
-resolvedE2[a_, b_] := resolveIndexConflicts[a, b][[2]]
-
-(* Times: rename dummies before multiplying *)
 INS /: HoldPattern[INS[a_] * INS[b_]] :=
   INS[resolvedE1[a, b] * resolvedE2[a, b]];
 
-(* Times: absorb an indexed non-INS factor into INS, resolving conflicts first *)
 INS /: HoldPattern[INS[a_] * b_] /; !indexFreeQ[b] && Head[b] =!= INS :=
   INS[resolvedE1[a, b] * resolvedE2[a, b]];
 
-(* Power: INS[x]^n unfolds to iterated Times, triggering rename at each step *)
 INS /: HoldPattern[INS[a_]^n_Integer?Positive] /; n >= 2 :=
   INS[a] * INS[a]^(n - 1);
 
-(* NC chain: resolve each adjacent INS pair left-to-right *)
+(* --- NC chain ------------------------------------------------------ *)
+
 INS /: HoldPattern[NC[x___, INS[a_], INS[b_], y___]] :=
   NC[x, INS[NC[resolvedE1[a, b], resolvedE2[a, b]]], y];
 
-(* NC chain: absorb non-INS neighbours into INS.
-   Three mutually exclusive cases (no overlap, ordering irrelevant):
-     (a) index-free: no conflict check needed
-     (b) indexed non-INS: rename dummies in neighbour before absorbing
-   The INS-INS case is handled by the rule above. *)
 INS /: HoldPattern[NC[x___, INS[a_], b_?indexFreeQ, y___]] :=
   NC[x, INS[NC[a, b]], y];
 INS /: HoldPattern[NC[x___, b_?indexFreeQ, INS[a_], y___]] :=
@@ -338,6 +317,7 @@ INS /: HoldPattern[NC[x___, INS[a_], b_, y___]] /; !indexFreeQ[b] && Head[b] =!=
 INS /: HoldPattern[NC[x___, b_, INS[a_], y___]] /; !indexFreeQ[b] && Head[b] =!= INS :=
   NC[x, INS[NC[resolvedE2[a, b], resolvedE1[a, b]]], y];
 
+(* --- Dot chain ----------------------------------------------------- *)
 
 Unprotect[Dot];
 INS /: HoldPattern[Dot[x___, INS[a_], INS[b_], y___]] :=
@@ -352,22 +332,24 @@ INS /: HoldPattern[Dot[x___, b_, INS[a_], y___]] /; !indexFreeQ[b] && Head[b] =!
   Dot[x, INS[Dot[resolvedE2[a, b], resolvedE1[a, b]]], y];
 Protect[Dot];
 
+(* --- INSRule ------------------------------------------------------- *)
 
-(*Define custom rules with INSRule, user can enter plain dummy indices i[1], i[2], ... in the RHS of the rule which are appropriately renamed not to coincide with anny pattern indices on replacement. *)
-FreeIdx[taken : {__Integer}, n_Integer] := 
+(* helpers *)
+FirstFreeIdx[taken : {__Integer}, n_Integer] :=
   Complement[Range[1, Length[taken] + n], taken][[n]];
-FreeIdc[taken_List, e_] := e /. {i[n_Integer] :> i[FreeIdx[taken, n]]};
+FirstFreeIdxRepl[taken_List, e_] := e /. {i[n_Integer] :> i[FirstFreeIdx[taken, n]]};
+
 SetAttributes[INSRule, HoldAll];
 INSRule[lhs_, rhs_] :=
-  Module[{patternVars, freshVars, newLhs, newRhs}, 
-   patternVars = 
-    DeleteDuplicates@
-     Cases[Unevaluated[rhs], i[s_Symbol] :> s, Infinity];
-   freshVars = Table[Unique[], {Length[patternVars]}];
-   newLhs = lhs /. Thread[patternVars -> freshVars];
-   newRhs = 
-    INS[FreeIdc[freshVars, rhs /. Thread[patternVars -> freshVars]]];
-   Evaluate[newLhs] :> Evaluate[newRhs]];
+  Module[{patternVars, freshVars, newLhs, newRhs},
+    patternVars =
+      DeleteDuplicates @
+        Cases[Unevaluated[rhs], i[s_Symbol] :> s, Infinity];
+    freshVars = Table[Unique[], {Length[patternVars]}];
+    newLhs = lhs /. Thread[patternVars -> freshVars];
+    newRhs =
+      INS[FirstFreeIdxRepl[freshVars, rhs /. Thread[patternVars -> freshVars]]];
+    Evaluate[newLhs] :> Evaluate[newRhs]];
 
 (* =================================================================== *)
 (*  Dirac-chain normaliser                                              *)
