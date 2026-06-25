@@ -532,8 +532,9 @@ VerificationTest[
 (* ================================================================== *)
 
 (* Two INS in a Dot chain: dummy conflicts resolved, result is a single INS[Dot[...]] *)
+(* Use sigma matrices: they are su2MatQ (not su2ScalarQ) so they stay inside Dot *)
 VerificationTest[
-  With[{res = INS[W1[GI[i[1]]] W2[GI[i[1]]]] . INS[W2[GI[i[1]]] W3[GI[i[1]]]]},
+  With[{res = INS[sigma[GI[i[1]]]^2] . INS[sigma[GI[i[1]]]^2]},
     MatchQ[res, HoldPattern[INS[_Dot]]] &&
     Length[DeleteDuplicates[
       Cases[res /. INS[e_] :> e, GI[i[n_Integer]] :> n, Infinity]]] === 2
@@ -543,42 +544,40 @@ VerificationTest[
 
 (* Index-free factor to the right of INS: absorbed without conflict check *)
 VerificationTest[
-  INS[W1[GI[i[1]]] W2[GI[i[1]]]] . gw,
-  INS[Dot[W1[GI[i[1]]] W2[GI[i[1]]], gw]],
+  INS[sigma[GI[i[1]]]^2] . gw,
+  INS[Dot[sigma[GI[i[1]]]^2, gw]],
   TestID -> "INS-dot-indexfree-right"];
 
 (* Index-free factor to the left of INS: absorbed without conflict check *)
 VerificationTest[
-  gw . INS[W1[GI[i[1]]] W2[GI[i[1]]]],
-  INS[Dot[gw, W1[GI[i[1]]] W2[GI[i[1]]]]],
+  gw . INS[sigma[GI[i[1]]]^2],
+  INS[Dot[gw, sigma[GI[i[1]]]^2]],
   TestID -> "INS-dot-indexfree-left"];
 
 (* Indexed non-INS to the right: absorbed into INS, dummy conflicts resolved *)
 VerificationTest[
-  With[{res = INS[W1[GI[i[1]]] W2[GI[i[1]]]] . W3[GI[i[1]]]},
+  With[{res = INS[sigma[GI[i[1]]]^2] . sigma[GI[i[1]]]},
     MatchQ[res, HoldPattern[INS[_Dot]]] &&
     Length[DeleteDuplicates[
-      Cases[res /. INS[e_] :> e, GI[i[n_Integer]] :> n, Infinity]]] === 2
+      Cases[res , GI[i[n_Integer]] :> n, Infinity]]] === 2
   ],
   True,
   TestID -> "INS-dot-indexed-non-INS-right"];
 
-(* Indexed non-INS to the left: absorbed into INS, dummy conflicts resolved,
-   order preserved (non-INS comes first inside Dot) *)
+(* Indexed non-INS to the left: absorbed into INS, dummy conflicts resolved *)
 VerificationTest[
-  With[{res = W3[GI[i[1]]] . INS[W1[GI[i[1]]] W2[GI[i[1]]]]},
+  With[{res = sigma[GI[i[1]]] . INS[sigma[GI[i[1]]]^2]},
     MatchQ[res, HoldPattern[INS[_Dot]]] &&
     Length[DeleteDuplicates[
-      Cases[res /. INS[e_] :> e, GI[i[n_Integer]] :> n, Infinity]]] === 2
+      Cases[res, GI[i[n_Integer]] :> n, Infinity]]] === 2
   ],
   True,
   TestID -> "INS-dot-indexed-non-INS-left"];
 
-(* Order of non-INS relative to INS content is preserved inside Dot.
-   b . INS[a] must give INS[Dot[b', a']] with b' first, not INS[Dot[a', b']] *)
+(* Order preserved: b . INS[a] gives INS[Dot[b', a']] with b' first *)
 VerificationTest[
-  With[{res = W3[GI[i[1]]] . INS[W1[GI[i[1]]] W2[GI[i[1]]]]},
-    MatchQ[res /. INS[e_] :> e, Dot[W3[_], __]]
+  With[{res = sigma[GI[i[1]]] . INS[sigma[GI[i[1]]]^2]},
+    MatchQ[res /. HoldPattern[INS[e_]]:>e, Dot[sigma[_], __]]
   ],
   True,
   TestID -> "INS-dot-indexed-non-INS-left-order"];
