@@ -1,7 +1,30 @@
 (* ::Package:: *)
 
+(* ====================================================================== *)
+(*  LagTools — symbolic tools for electroweak Lagrangians & Feynman rules  *)
+(*                                                                          *)
+(*  Value conventions (UpValue vs DownValue) and the "wrapper" philosophy   *)
+(*  are documented in README.md.  In short: the semantic containers INS and *)
+(*  Col own every rule for how *general* operators act on them (UpValues);  *)
+(*  every operator owns its own rules (DownValues).                         *)
+(*                                                                          *)
+(*  The file is organised into the modules below in load order.  Each is    *)
+(*  self-contained (all definitions are delayed, single Global context) so   *)
+(*  it can later be split into its own file without changing behaviour:      *)
+(*    1. Fields        field/parameter declarations + predicate algebra      *)
+(*    2. DiracAlgebra  NC (**), bar, ConjugateTranspose, Dirac simplifiers   *)
+(*    3. IndexAlgebra  tensors g/kd3/eps3, d, contraction, INS namespace     *)
+(*    4. Gauge         sigma, Col, SU(2)/U(1) generators, multiplets, covD   *)
+(*    5. FeynmanRules  renormalisation, functional derivative, vertices      *)
+(*    6. Formatting    MakeBoxes display rules                               *)
+(* ====================================================================== *)
+
 If[TrueQ[$LagToolsLoaded], Return[]];
 $LagToolsLoaded = True;
+
+(* ====================================================================== *)
+(*  1. Fields — declarations and the predicate algebra                     *)
+(* ====================================================================== *)
 
 (*---- Dirac matrices ----*)
 $diracMat = {ga, ga0, ga5, PL, PR};
@@ -68,6 +91,8 @@ $metadataP = _ElectricCharge | _Hypercharge;
 stripMeta[x_] := x /. $metadataP :> 1;
 
 (*---- composite predicates with deep-scan ----*)
+(* su2MatQ / su2DoubletQ are completed in the Gauge module; forward references
+   here are fine because every definition is delayed. *)
 commutingQ[x_]   := FreeQ[stripMeta[x], _?oddQ | _?diracMatQ];
 STindepQ[x_]     := FreeQ[stripMeta[x], _?fieldQ];
 diracScalarQ[x_] := FreeQ[stripMeta[x], _?fermionQ | _?diracMatQ];
@@ -81,27 +106,10 @@ properIndexStructureQ[inds__] := And @@ (MemberQ[$indices, Head[#]] & /@ {inds})
 (* True when the expression carries no index slots of any type *)
 indexFreeQ[e_] := FreeQ[e, Alternatives @@ (Blank /@ $indices)];
 
-(* ---- metric ----   g symmetric;  g_{mu}^{mu} = D = 4 *)
-SetAttributes[g, Orderless];
-g[LI[i[a_]], LI[i[a_]]] /; IntegerQ[a] := 4;
-
-(* ---- Kronecker delta for flavour indices and su2 gauge indices ---- delta symmetric;  delta_{i}^{i} = 3 *)
-SetAttributes[kd3, Orderless];
-kd3[h_[i[a_]], h_[i[a_]]] /; IntegerQ[a] && MemberQ[{FI, GI}, h] := 3;
-kd3[h_[a_],h_[a_]] /; IntegerQ[a] && MemberQ[{FI, GI}, h] := 1;
-
-(* ---- SU(2) Levi-Civita / structure constant: eps3[a,b,c] = epsilon^{abc} ---- *)
-eps3[GI[a_Integer], GI[b_Integer], GI[c_Integer]] := Signature[{a, b, c}];
-
-(* ---- Pauli matrices sigma[1,2,3] as explicit 2x2 matrices ---- *)
-sigma[GI[1]] = {{0, 1}, {1, 0}};
-sigma[GI[2]] = {{0, -I}, {I, 0}};
-sigma[GI[3]] = {{1, 0}, {0, -1}};
-
-(* Charge conjugation for an SU(2) doublet *)
-ChargeConj[phi_List] := I * sigma[GI[2]] . Conjugate[phi];
-ChargeConj[col_Col]  := Col @@ (I * sigma[GI[2]] . Conjugate[List @@ col]);
-
+(* ====================================================================== *)
+(*  2. DiracAlgebra — NC (**), bar, ConjugateTranspose, Dirac simplifiers  *)
+(*  (Col and INS handle these operators via UpValues in their own modules.) *)
+(* ====================================================================== *)
 
 (* ---- noncommutative product **  (boson/scalar factors are pulled out) ---- *)
 NC[] := 1;
@@ -110,7 +118,6 @@ NC[x___, c_?commutingQ, y___]    := c * NC[x, y];
 NC[x___, c_?commutingQ*d_, y___] := c * NC[x, d, y];
 NC[x___, NC[z___], y___]         := NC[x, z, y];
 NC[x___, l_List, y___]           := NC[x, #, y]& /@ l;
-(*NC[x___, col_Col, y___]          := Col @@ (NC[x, #, y]& /@ List@@col);*)
 NC[x___, ga0, ga0, y___] := NC[x, y];
 
 (* ** delegates to NC *)
@@ -123,7 +130,6 @@ Protect[NonCommutativeMultiply];
 bar[0] = 0;
 bar[a_Plus] := bar /@ a;
 bar[a_List]      := bar /@ a;
-bar[col_Col]     := Col @@ (bar /@ List@@col);
 bar[c_ * x_] := Conjugate[c] bar[x] /; diracScalarQ[c];
 bar[PL ** f_] := bar[f] ** PR;
 bar[PR ** f_] := bar[f] ** PL;
@@ -149,41 +155,75 @@ ConjugateTranspose[a_Dot]      := ConjugateTranspose /@ Reverse[a];
 ConjugateTranspose[c_ * x_]     := Conjugate[c] ConjugateTranspose[x] /; scalarQ[c];
 ConjugateTranspose[0]           := 0;
 ConjugateTranspose[d[a_][b_]] := d[a][ConjugateTranspose[b]];
-ConjugateTranspose[col_Col]   := Col @@ (Conjugate /@ List@@col);
-ConjugateTranspose[INS[a_]] := INS[ConjugateTranspose[a]];
 ConjugateTranspose[ConjugateTranspose[a_]]:=a;
 Protect[ConjugateTranspose];
 
+(* ---- Dirac-chain normaliser ---- *)
+(*  (1) gamma5 = P_R - P_L                                                      *)
+(*  (2) move ghost fields to the left past dirac matrices                       *)
+(*  (3) move projectors right past gammas and collapse products:                *)
+(*        P_{L,R} gamma^mu = gamma^mu P_{R,L} ,  P^2 = P ,  P_L P_R = 0         *)
+(*  (4) completeness in a sum:  c X P_L Y + c X P_R Y -> c X Y  (P_L+P_R=1)    *)
+(*     applied AFTER (3) so projectors are already in canonical right position  *)
+diracSimplify[e_] := Module[{x},
+   x = e /. ga5 -> PR - PL;
+   x = x //. NC[a___, m_, f_, b___] /;
+                  (grassmannQ[f] && diracMatQ[m]) :>
+              NC[a, f, m, b];
+   x = x //. {
+      NC[a___, PL, ga[m_], b___] :> NC[a, ga[m], PR, b],
+      NC[a___, PR, ga[m_], b___] :> NC[a, ga[m], PL, b],
+      NC[a___, PL, PL, b___] :> NC[a, PL, b],
+      NC[a___, PR, PR, b___] :> NC[a, PR, b],
+      NC[a___, PL, PR, b___] :> 0,
+      NC[a___, PR, PL, b___] :> 0};
+   x];
+
+(* Collapse P_L + P_R -> 1 in sums of Dirac chains.  Expensive on large
+   expressions; call explicitly after feynman-rule extraction, not during
+   simplification of the full Lagrangian. *)
+recombineProjectors[e_] := Expand[e] //. {
+   Plus[u___, c_. * NC[gg___, PL, hh___],
+              c_. * NC[gg___, PR, hh___], v___] :>
+      Plus[u, v, c NC[gg, hh]],
+   Plus[u___, c_. * PL, c_. * PR, v___] :> Plus[u, v, c]};
+
+(* ====================================================================== *)
+(*  3. IndexAlgebra — index tensors, derivative, contraction, INS          *)
+(* ====================================================================== *)
+
+(* ---- metric ----   g symmetric;  g_{mu}^{mu} = D = 4 *)
+SetAttributes[g, Orderless];
+g[LI[i[a_]], LI[i[a_]]] /; IntegerQ[a] := 4;
+
+(* ---- Kronecker delta for flavour indices and su2 gauge indices ---- delta symmetric;  delta_{i}^{i} = 3 *)
+SetAttributes[kd3, Orderless];
+kd3[h_[i[a_]], h_[i[a_]]] /; IntegerQ[a] && MemberQ[{FI, GI}, h] := 3;
+kd3[h_[a_],h_[a_]] /; IntegerQ[a] && MemberQ[{FI, GI}, h] := 1;
+
+(* ---- SU(2) Levi-Civita / structure constant: eps3[a,b,c] = epsilon^{abc} ---- *)
+eps3[GI[a_Integer], GI[b_Integer], GI[c_Integer]] := Signature[{a, b, c}];
+
+(* ---- scalar Conjugate rules (Col and INS handle Conjugate via UpValues) ---- *)
 Unprotect[Conjugate];
 (*Conjugate[h_[inds__]] /; properIndexStructureQ[inds] := Conjugate[h][inds];*)
 Conjugate[ElectricCharge[f_]] := ElectricCharge[f];
 Conjugate[d[a_][b_]] := d[a][Conjugate[b]];
-Conjugate[INS[a___]] := INS[Conjugate[a]];
 Conjugate[a_Times] := Conjugate /@ a;
 Conjugate[eps3[args___]] := eps3[args]; Conjugate[kd3[args___]] := kd3[args];
 Protect[Conjugate];
 
-Unprotect[Dot];
-Dot[x___, a_Plus, y___] := Dot[x, #, y]& /@ a /; {x,y} =!= {};
-Dot[x___, c_?su2ScalarQ * a_, y___] := c*Dot[x,a,y] /; {x,y} =!= {};
-Dot[x___, c_?su2ScalarQ ** a_, y___] := c**Dot[x,a,y] /; {x,y} =!= {};
-Dot[x___, a_**c_?su2ScalarQ, y___] := Dot[x,a,y]**c /; {x,y} =!= {};
-Protect[Dot];
-
-(* ---- derivative d_mu ---- *)
+(* ---- derivative d_mu (Col and INS handle d via UpValues) ---- *)
 d[mu_][a_Plus] := d[mu] /@ a;
 d[mu_][Times[a_, b__]] :=  d[mu][a] Times[b] + a d[mu][Times[b]];
 d[mu_][NC[a_, b___]]   := NC[d[mu][a], NC[b]] + NC[a, d[mu][NC[b]]];
 d[mu_][c_] := 0 /; STindepQ[c];
-d[mu_][HoldPattern[INS[a_]]] := INS[d[mu][resolvedE2[mu, a]]]; (* assumption: mu contains no dummy indices *)
 d[mu_][l_List]  := d[mu] /@ l;
-d[mu_][col_Col] := Col @@ (d[mu] /@ List@@col);
-
 
 (* ---- metric contraction:  g_{mu nu} X^{..nu..} = X^{..mu..}  (nu a dummy) ---- *)
 contractIndexType[e_, metric_, indexType_] := e //. HoldPattern[Times[metric[indexType[a_], indexType[b_]], r__]] /;
      Count[Cases[Times[r], indexType[x_] :> x, Infinity], b] == 1 :> (Times[r] /. indexType[b] -> indexType[a]);
-     
+
 contract[e_]:= Module[{e1, e2},
   e1 = contractIndexType[e, g, LI];
   e2 = contractIndexType[e1, kd3, GI];
@@ -238,11 +278,17 @@ FISum = IdxSum[FI];
 
 (* =================================================================== *)
 (*  IndexNamespace (INS)                                                *)
+(*                                                                     *)
+(*  INS is a semantic *wrapper*: INS[expr] is a normal form that carries *)
+(*  an index namespace around a whole (sub)expression, keeping dummy      *)
+(*  indices disjoint.  Per the value convention, INS owns every rule for  *)
+(*  how a general operator (NC, *, Dot, bar, Conjugate, †, d, covD, and   *)
+(*  fdiffINS) traverses it, as UpValues collected below.                  *)
 (* =================================================================== *)
 
 IndexNamespace := INS;
 
-(* --- General rules ------------------------------------------------- *)
+(* --- INS as operator: self-normalisation (DownValues) ------------- *)
 
 INS[INS[a_]]                               := INS[a];
 INS[c_?indexFreeQ]                         := c;
@@ -250,9 +296,6 @@ INS[c_?indexFreeQ * a_]                    := c * INS[a];
 INS[a_Plus]                                := INS /@ a;
 INS[a_Times] /; MemberQ[List @@ a, _Plus] := INS[Expand[a]];
 INS[Power[a_Plus, b_?NumericQ]]            := INS[Expand[Power[a, b]]];
-
-INS /: HoldPattern[NC[INS[a_]]] := INS[NC[a]];
-bar[HoldPattern[INS[a_]]]       := INS[bar[a]];
 
 (* --- Conflict resolution algorithm --------------------------------- *)
 
@@ -292,8 +335,16 @@ resolveIndexConflicts[expr1_, expr2_] :=
 resolvedE1[a_, b_] := resolveIndexConflicts[a, b][[1]];
 resolvedE2[a_, b_] := resolveIndexConflicts[a, b][[2]];
 
-(* --- Times and Power ----------------------------------------------- *)
+(* --- Interactions: INS owns how general operators traverse it ------- *)
+(*     (UpValues.  covDQ and fdiffINS are defined in later modules; this  *)
+(*      is fine because the rules are delayed.)                           *)
 
+INS /: HoldPattern[NC[INS[a_]]]                 := INS[NC[a]];
+INS /: HoldPattern[bar[INS[a_]]]                := INS[bar[a]];
+INS /: HoldPattern[Conjugate[INS[a___]]]        := INS[Conjugate[a]];
+INS /: HoldPattern[ConjugateTranspose[INS[a_]]] := INS[ConjugateTranspose[a]];
+
+(* Times and Power *)
 INS /: HoldPattern[INS[a_] * INS[b_]] :=
   INS[resolvedE1[a, b] * resolvedE2[a, b]];
 
@@ -303,8 +354,7 @@ INS /: HoldPattern[INS[a_] * b_] /; !indexFreeQ[b] && Head[b] =!= INS :=
 INS /: HoldPattern[INS[a_]^n_Integer?Positive] /; n >= 2 :=
   INS[a] * INS[a]^(n - 1);
 
-(* --- NC chain ------------------------------------------------------ *)
-
+(* NC chain *)
 INS /: HoldPattern[NC[x___, INS[a_], INS[b_], y___]] :=
   NC[x, INS[NC[resolvedE1[a, b], resolvedE2[a, b]]], y];
 
@@ -317,9 +367,7 @@ INS /: HoldPattern[NC[x___, INS[a_], b_, y___]] /; !indexFreeQ[b] && Head[b] =!=
 INS /: HoldPattern[NC[x___, b_, INS[a_], y___]] /; !indexFreeQ[b] && Head[b] =!= INS :=
   NC[x, INS[NC[resolvedE2[a, b], resolvedE1[a, b]]], y];
 
-(* --- Dot chain ----------------------------------------------------- *)
-
-Unprotect[Dot];
+(* Dot chain *)
 INS /: HoldPattern[Dot[x___, INS[a_], INS[b_], y___]] :=
   Dot[x, INS[Dot[resolvedE1[a, b], resolvedE2[a, b]]], y];
 INS /: HoldPattern[Dot[x___, INS[a_], b_?indexFreeQ, y___]] :=
@@ -330,7 +378,17 @@ INS /: HoldPattern[Dot[x___, INS[a_], b_, y___]] /; !indexFreeQ[b] && Head[b] =!
   Dot[x, INS[Dot[resolvedE1[a, b], resolvedE2[a, b]]], y];
 INS /: HoldPattern[Dot[x___, b_, INS[a_], y___]] /; !indexFreeQ[b] && Head[b] =!= INS :=
   Dot[x, INS[Dot[resolvedE2[a, b], resolvedE1[a, b]]], y];
-Protect[Dot];
+
+(* Derivative d_mu and covariant derivative push INS outward, renaming any
+   dummy in a that clashes with the (free) leg index mu before recursing.
+   The literal-d rule is more specific than the covDQ rule, so it wins for d. *)
+INS /: HoldPattern[d[mu_][INS[a_]]] := INS[d[mu][resolvedE2[mu, a]]];
+INS /: HoldPattern[h_[mu_][INS[a_]]] /; covDQ[h] := INS[h[mu][resolvedE2[mu, a]]];
+
+(* Functional derivative: rename dummies in x that clash with the leg index
+   xi before recursing, mirroring the d[mu_][INS[a_]] rule above. *)
+INS /: HoldPattern[fdiffINS[{f_, xi_, p_}, INS[x_]]] :=
+  INS[fdiffINS[{f, xi, p}, resolvedE2[xi, x]]];
 
 (* --- INSRule ------------------------------------------------------- *)
 
@@ -351,122 +409,29 @@ INSRule[lhs_, rhs_] :=
       INS[FirstFreeIdxRepl[freshVars, rhs /. Thread[patternVars -> freshVars]]];
     Evaluate[newLhs] :> Evaluate[newRhs]];
 
-(* =================================================================== *)
-(*  Dirac-chain normaliser                                              *)
-(*  (1) gamma5 = P_R - P_L                                                      *)
-(*  (2) move ghost fields to the left past dirac matrices                       *)
-(*  (3) move projectors right past gammas and collapse products:                *)
-(*        P_{L,R} gamma^mu = gamma^mu P_{R,L} ,  P^2 = P ,  P_L P_R = 0         *)
-(*  (4) completeness in a sum:  c X P_L Y + c X P_R Y -> c X Y  (P_L+P_R=1)    *)
-(*     applied AFTER (3) so projectors are already in canonical right position  *)
-diracSimplify[e_] := Module[{x},
-   x = e /. ga5 -> PR - PL;
-   x = x //. NC[a___, m_, f_, b___] /;
-                  (grassmannQ[f] && diracMatQ[m]) :>
-              NC[a, f, m, b];
-   x = x //. {
-      NC[a___, PL, ga[m_], b___] :> NC[a, ga[m], PR, b],
-      NC[a___, PR, ga[m_], b___] :> NC[a, ga[m], PL, b],
-      NC[a___, PL, PL, b___] :> NC[a, PL, b],
-      NC[a___, PR, PR, b___] :> NC[a, PR, b],
-      NC[a___, PL, PR, b___] :> 0,
-      NC[a___, PR, PL, b___] :> 0};
-   x];
+(* ====================================================================== *)
+(*  4. Gauge — Pauli matrices, Col doublets, SU(2)/U(1), multiplets, covD  *)
+(* ====================================================================== *)
 
-(* Collapse P_L + P_R -> 1 in sums of Dirac chains.  Expensive on large
-   expressions; call explicitly after feynman-rule extraction, not during
-   simplification of the full Lagrangian. *)
-recombineProjectors[e_] := Expand[e] //. {
-   Plus[u___, c_. * NC[gg___, PL, hh___],
-              c_. * NC[gg___, PR, hh___], v___] :>
-      Plus[u, v, c NC[gg, hh]],
-   Plus[u___, c_. * PL, c_. * PR, v___] :> Plus[u, v, c]};
-   
-(* ---- chiral field renormalisation ---- *)
-(*   psi -> (1+dZL) P_L psi + (1+dZR) P_R psi                                   *)
-(*   psibar -> (1+dZL) psibar P_R + (1+dZR) psibar P_L                           *)
-(* returns the substitution rules; apply with  L /. renorm[f, dZL, dZR] .       *)
-renorm[f_, zL_, zR_] := {
-   f -> (1 + zL) * NC[PL, f] + (1 + zR) NC[PR, f],
-   bar[f] ->   (1 + Conjugate[zL]) NC[bar[f], PR] + (1 + Conjugate[zR]) NC[bar[f], PL]};
+(* ---- Pauli matrices sigma[1,2,3] as explicit 2x2 matrices ---- *)
+sigma[GI[1]] = {{0, 1}, {1, 0}};
+sigma[GI[2]] = {{0, -I}, {I, 0}};
+sigma[GI[3]] = {{1, 0}, {0, -1}};
 
-(* ---- boson field renormalisation ---- *)
-(*  Diagonal: h_0 = (1 + dZ/2) h                                                   *)
-(*  Returns two rules so both indexed  h[idx]  and bare scalar  h  are covered.    *)
-(*  The indexed rule  h[idx___] :> ...  fires first (more specific),               *)
-(*  so the bare rule never incorrectly replaces a head position.                   *)
-(*  Apply with  expr /. renormBoson[h, dZ]  or include in a Flatten[{...}] list.  *)
-renormBoson[h_, dZ_] := {
-   h[idx___] :> (1 + dZ/2) h[idx],
-   h          :> (1 + dZ/2) h};
+(* Charge conjugation for an SU(2) doublet (a doublet-specialised operator,
+   so its Col case is its own DownValue, not a Col UpValue) *)
+ChargeConj[phi_List] := I * sigma[GI[2]] . Conjugate[phi];
+ChargeConj[col_Col]  := Col @@ (I * sigma[GI[2]] . Conjugate[List @@ col]);
 
-(*  2\[Times]2 mixing renormalisation: (h1_0, h2_0) = Z^{1/2} (h1, h2), where            *)
-(*     h1_0 = (1 + dZ11/2) h1 + (dZ12/2) h2                                       *)
-(*     h2_0 = (dZ21/2) h1 + (1 + dZ22/2) h2                                       *)
-(*  Typical use: renormMix[Zb, AA, dZZZ, dZZA, dZAZ, dZAA]                        *)
-(*  Rules applied simultaneously by /. so mixing on the RHS is NOT re-expanded.   *)
-renormMix[h1_, h2_, dZ11_, dZ12_, dZ21_, dZ22_] := {
-   h1[idx___] :> (1 + dZ11/2) h1[idx] + (dZ12/2) h2[idx],
-   h2[idx___] :> (dZ21/2) h1[idx] + (1 + dZ22/2) h2[idx],
-   h1          :> (1 + dZ11/2) h1 + (dZ12/2) h2,
-   h2          :> (dZ21/2) h1 + (1 + dZ22/2) h2};
-   
-(* ---- functional derivative ---- *)
-(* fdiffINS operates on bare or INS-wrapped expressions.  The INS rule       *)
-(* renames dummies in x that clash with the leg index xi before recursing,   *)
-(* mirroring the same pattern used in d[mu_][HoldPattern[INS[a_]]].          *)
-fdiffINS[lg_, a_Plus]     := fdiffINS[lg, #] & /@ a;
-fdiffINS[{f_, xi_, p_}, HoldPattern[INS[x_]]] := INS[fdiffINS[{f, xi, p}, resolvedE2[xi, x]]];
-fdiffINS[lg_, c_ * x_]   := c fdiffINS[lg, x] /; STindepQ[c];
-fdiffINS[lg_, c_]         := 0 /; STindepQ[c];
-fdiffINS[lg_, Times[a_, b__]] := fdiffINS[lg, a] Times[b] + a fdiffINS[lg, Times[b]];
-fdiffINS[lg_, Power[b_, n_Integer?Positive]] := n b^(n - 1) fdiffINS[lg, b];
+(* ---- Dot linearity: pull SU(2)-scalar factors through a Dot product ---- *)
+Unprotect[Dot];
+Dot[x___, a_Plus, y___] := Dot[x, #, y]& /@ a /; {x,y} =!= {};
+Dot[x___, c_?su2ScalarQ * a_, y___] := c*Dot[x,a,y] /; {x,y} =!= {};
+Dot[x___, c_?su2ScalarQ ** a_, y___] := c**Dot[x,a,y] /; {x,y} =!= {};
+Dot[x___, a_**c_?su2ScalarQ, y___] := Dot[x,a,y]**c /; {x,y} =!= {};
+Protect[Dot];
 
-(* functional differentiation of field derivatives with transition to         *)
-(* momentum space                                                             *)
-fdiffINS[{f_, xi_, p_}, HoldPattern[d[m_][z_]]] :=
-  (-I p[m]) fdiffINS[{f, xi, p}, z];
-
-(* delta phi_LI1 / delta phi_LI2 *)
-fdiffINS[{f_, LI[a_], p_}, f_[LI[b_]]] := g[LI[a], LI[b]];
-fdiffINS[{f_, h_[a_], p_}, f_[h_[b_]]] := kd3[h[a], h[b]] /; MemberQ[{GI, FI}, h];
-(* delta bar[f]_h1 / delta bar[f]_h2  (anti-fermion with flavor/color index) *)
-fdiffINS[{bar[f_], h_[a_], p_}, bar[f_[h_[b_]]]] := kd3[h[a], h[b]] /; MemberQ[{GI, FI}, h];
-(* delta phi / delta phi *)
-fdiffINS[{f_, None, _}, f_] := 1 /; fieldQ[f];
-(* delta theta / delta theta  (gauge parameters: bosonic, no Grassmann sign) *)
-(*fdiffINS[{f_, None, _}, f_] := 1 /; gaugeParamQ[f];*)
-
-(* graded Leibniz over a chain. pick up (-1)^(#odd factors to the left)      *)
-(* when the derivative is odd.                                               *)
-GrassmFact[a_,l_]:=If[!oddQ[a],1,Power[-1,Count[l, _?oddQ]]];
-fdiffINS[{f_, xi_, p_}, ch_NC] := With[{l = List @@ ch},
-   Sum[GrassmFact[f,Take[l,n-1]]*NC@@MapAt[fdiffINS[{f, xi, p},#]&,l,n],
-{n,1,Length[l]}]
-];
-(* anything independent of the leg field -> 0 *)
-fdiffINS[{f_, _, _}, x_] := 0 /; FreeQ[x, f];
-
-(* public API: wrap the expression in INS so dummy indices are tracked, then  *)
-(* dispatch to fdiffINS which resolves any clash with the leg index           *)
-fdiff[lg_, e_] := fdiffINS[lg, INS[e]];
-
-(* ---- Feynman rules ---- *)
-(* differentiate wrt each leg in turn, then send the leftover fields to zero *)
-setZero[e_] := e /. x_ /; fieldQ[x] :> 0;
-functionalD[L_, legs_] := Module[{e = Expand[L]},
-   Do[e = Expand[fdiff[lg, e]], {lg, legs}];
-   Expand[setZero[e]]];
-
-(* tree-level vertex:  i * delta^n S / delta phi... , contracted, Dirac- and    *)
-(* index-canonicalised *)
-RemoveINS[e_] := Module[{L}, (e /. {INS -> L}) /. {L[a_] -> a}]
-feynmanRule[l_, legs_] := I recombineProjectors @ canonical @ diracSimplify @ contract @ functionalD[RemoveINS@l, legs];
-
-(* =================================================================== *)
-(*  Gauge multiplet infrastructure                                      *)
-(* =================================================================== *)
-
+(* ---- SU(2) multiplet predicates ---- *)
 su2DoubletQ[_] := False;
 su2SingletQ[_] := False;
 su2DoubletQ[h_[___]] /; h =!= bar := su2DoubletQ[h];
@@ -517,33 +482,38 @@ DeclareGaugeSinglet[sym_Symbol, lbl_, rule_RuleDelayed] := Module[
 ];
 
 (* =================================================================== *)
-(*  Col: SU(2) column-vector wrapper                                   *)
-(*  Not Listable — Plus/Times never distribute into doublet components  *)
+(*  Col: SU(2) column-vector wrapper                                    *)
+(*                                                                     *)
+(*  Col is a semantic *wrapper* (a doublet container, not a structural  *)
+(*  product), so it owns every rule for how a general operator acts on  *)
+(*  it, as UpValues.  Not Listable — Plus/Times never distribute into    *)
+(*  doublet components implicitly.                                      *)
 (* =================================================================== *)
 
-Col /: Col[a__] + Col[b__] := Col @@ MapThread[Plus, {{a}, {b}}];
-Col /: c_?scalarQ * Col[a__]       := Col @@ (c * {a});
-Col /: c_?scalarQ ** Col[a__]      := Col @@ (c ** {a});
-(*Col /: bar[Col[args___]]   := Col @@ (bar /@ args);*)
+Col /: Col[a__] + Col[b__]    := Col @@ MapThread[Plus, {{a}, {b}}];
+Col /: c_?scalarQ * Col[a__]  := Col @@ (c * {a});
+Col /: c_?scalarQ ** Col[a__] := Col @@ (c ** {a});
+
+Col /: bar[col_Col]                := Col @@ (bar /@ List@@col);
+Col /: d[mu_][col_Col]             := Col @@ (d[mu] /@ List@@col);
+Col /: ConjugateTranspose[col_Col] := Col @@ (Conjugate /@ List@@col);
+Col /: Conjugate[Col[v__]]         := Col @@ (Conjugate /@ {v});
 
 (* mat . Col[v] — explicit matrix acting on column *)
-Unprotect[Dot];
 Col /: Dot[mat_List, Col[v__]]  := Col @@ (mat . {v});
 (* Col . mat — row context (result of ConjugateTranspose) *)
 Col /: Dot[Col[a__], mat_List]  := Col @@ ({a} . mat);
 (* Col . Col — inner product -> scalar *)
 Col /: Dot[Col[a__], Col[b__]]  := {a} . {b};
-Protect[Dot];
 
-NC[c1_Col,y___,c2_Col] := Sum[NC[c1[[sumidx1]],y,c2[[sumidx2]]],{sumidx1,1,2},{sumidx2,1,2}] /; su2ScalarQ[y];
-NC[c1_Col,c2_Col] := Sum[NC[c1[[sumidx1]],c2[[sumidx2]]],{sumidx1,1,2},{sumidx2,1,2}];
-
-Unprotect[Conjugate];
-Col /: Conjugate[Col[v__]] := Col @@ (Conjugate /@ {v});
-Protect[Conjugate];
+(* NC of doublets — sum over the 2 components *)
+Col /: NC[c1_Col, y___, c2_Col] :=
+  Sum[NC[c1[[sumidx1]], y, c2[[sumidx2]]], {sumidx1, 1, 2}, {sumidx2, 1, 2}] /; su2ScalarQ[y];
+Col /: NC[c1_Col, c2_Col] :=
+  Sum[NC[c1[[sumidx1]], c2[[sumidx2]]], {sumidx1, 1, 2}, {sumidx2, 1, 2}];
 
 (* =================================================================== *)
-(*  SU(2) and U(1)_Y generators                                        *)
+(*  SU(2) and U(1)_Y generators (doublet-specialised -> DownValues)    *)
 (* =================================================================== *)
 
 (* sigma[a]/2 acting on a Col doublet *)
@@ -559,6 +529,8 @@ U1Y[f_[inds___]]    /; su2DoubletQ[f]   || su2SingletQ[f]   := Hypercharge[f]*f[
 
 (* =================================================================== *)
 (*  Covariant derivative and field strength declarations                *)
+(*  (The INS interaction h_[mu_][INS[a_]] /; covDQ[h] lives with the     *)
+(*   other INS UpValues in the IndexAlgebra module.)                     *)
 (* =================================================================== *)
 
 covDQ[_]     := False;
@@ -578,27 +550,100 @@ DeclareFieldStr[sym_Symbol, lbl_, rule_RuleDelayed] := (
   sym
 );
 
-(* Covariant derivative applied to an INS-wrapped argument: push INS inside,
-   renaming any dummy in a that clashes with the indices carried by h.
-   h = sym[LI[mu]] where covDQ[sym]; the index mu in h is treated as a free
-   index, so dummies in a that equal mu are renamed before pushing inside.
-   Any new dummy GI indices introduced by ExplCovD expansion are then
-   managed by INS in the usual way. *)
-INS /: HoldPattern[h_[mu_][INS[a_]]] /; covDQ[h] :=
-  INS[h[mu][resolvedE2[mu, a]]];
-
-(* =================================================================== *)
-(*  Explicit substitution                                               *)
-(* =================================================================== *)
-
+(* ---- Explicit substitution ---- *)
 ExplGaugeMult[e_] := e /. (Last /@ DownValues[GaugeMultExpansion]);
 ExplCovD[e_]      := e /. (Last /@ DownValues[CovDExpansion]);
 ExplFieldStr[e_]  := e /. (Last /@ DownValues[FieldStrExpansion]);
 
-(* =================================================================== *)
-(*  Display formatting (notebook output)                               *)
-(* =================================================================== *)
+(* ====================================================================== *)
+(*  5. FeynmanRules — renormalisation, functional derivative, vertices     *)
+(* ====================================================================== *)
 
+(* ---- chiral field renormalisation ---- *)
+(*   psi -> (1+dZL) P_L psi + (1+dZR) P_R psi                                   *)
+(*   psibar -> (1+dZL) psibar P_R + (1+dZR) psibar P_L                           *)
+(* returns the substitution rules; apply with  L /. renorm[f, dZL, dZR] .       *)
+renorm[f_, zL_, zR_] := {
+   f -> (1 + zL) * NC[PL, f] + (1 + zR) NC[PR, f],
+   bar[f] ->   (1 + Conjugate[zL]) NC[bar[f], PR] + (1 + Conjugate[zR]) NC[bar[f], PL]};
+
+(* ---- boson field renormalisation ---- *)
+(*  Diagonal: h_0 = (1 + dZ/2) h                                                   *)
+(*  Returns two rules so both indexed  h[idx]  and bare scalar  h  are covered.    *)
+(*  The indexed rule  h[idx___] :> ...  fires first (more specific),               *)
+(*  so the bare rule never incorrectly replaces a head position.                   *)
+(*  Apply with  expr /. renormBoson[h, dZ]  or include in a Flatten[{...}] list.  *)
+renormBoson[h_, dZ_] := {
+   h[idx___] :> (1 + dZ/2) h[idx],
+   h          :> (1 + dZ/2) h};
+
+(*  2\[Times]2 mixing renormalisation: (h1_0, h2_0) = Z^{1/2} (h1, h2), where            *)
+(*     h1_0 = (1 + dZ11/2) h1 + (dZ12/2) h2                                       *)
+(*     h2_0 = (dZ21/2) h1 + (1 + dZ22/2) h2                                       *)
+(*  Typical use: renormMix[Zb, AA, dZZZ, dZZA, dZAZ, dZAA]                        *)
+(*  Rules applied simultaneously by /. so mixing on the RHS is NOT re-expanded.   *)
+renormMix[h1_, h2_, dZ11_, dZ12_, dZ21_, dZ22_] := {
+   h1[idx___] :> (1 + dZ11/2) h1[idx] + (dZ12/2) h2[idx],
+   h2[idx___] :> (dZ21/2) h1[idx] + (1 + dZ22/2) h2[idx],
+   h1          :> (1 + dZ11/2) h1 + (dZ12/2) h2,
+   h2          :> (dZ21/2) h1 + (1 + dZ22/2) h2};
+
+(* ---- functional derivative ---- *)
+(* fdiffINS operates on bare or INS-wrapped expressions.  The INS-wrapped case  *)
+(* (which renames clashing dummies before recursing) is an INS UpValue in the   *)
+(* IndexAlgebra module.                                                         *)
+fdiffINS[lg_, a_Plus]     := fdiffINS[lg, #] & /@ a;
+fdiffINS[lg_, c_ * x_]   := c fdiffINS[lg, x] /; STindepQ[c];
+fdiffINS[lg_, c_]         := 0 /; STindepQ[c];
+fdiffINS[lg_, Times[a_, b__]] := fdiffINS[lg, a] Times[b] + a fdiffINS[lg, Times[b]];
+fdiffINS[lg_, Power[b_, n_Integer?Positive]] := n b^(n - 1) fdiffINS[lg, b];
+
+(* functional differentiation of field derivatives with transition to         *)
+(* momentum space                                                             *)
+fdiffINS[{f_, xi_, p_}, HoldPattern[d[m_][z_]]] :=
+  (-I p[m]) fdiffINS[{f, xi, p}, z];
+
+(* delta phi_LI1 / delta phi_LI2 *)
+fdiffINS[{f_, LI[a_], p_}, f_[LI[b_]]] := g[LI[a], LI[b]];
+fdiffINS[{f_, h_[a_], p_}, f_[h_[b_]]] := kd3[h[a], h[b]] /; MemberQ[{GI, FI}, h];
+(* delta bar[f]_h1 / delta bar[f]_h2  (anti-fermion with flavor/color index) *)
+fdiffINS[{bar[f_], h_[a_], p_}, bar[f_[h_[b_]]]] := kd3[h[a], h[b]] /; MemberQ[{GI, FI}, h];
+(* delta phi / delta phi *)
+fdiffINS[{f_, None, _}, f_] := 1 /; fieldQ[f];
+(* delta theta / delta theta  (gauge parameters: bosonic, no Grassmann sign) *)
+(*fdiffINS[{f_, None, _}, f_] := 1 /; gaugeParamQ[f];*)
+
+(* graded Leibniz over a chain. pick up (-1)^(#odd factors to the left)      *)
+(* when the derivative is odd.                                               *)
+GrassmFact[a_,l_]:=If[!oddQ[a],1,Power[-1,Count[l, _?oddQ]]];
+fdiffINS[{f_, xi_, p_}, ch_NC] := With[{l = List @@ ch},
+   Sum[GrassmFact[f,Take[l,n-1]]*NC@@MapAt[fdiffINS[{f, xi, p},#]&,l,n],
+{n,1,Length[l]}]
+];
+(* anything independent of the leg field -> 0 *)
+fdiffINS[{f_, _, _}, x_] := 0 /; FreeQ[x, f];
+
+(* public API: wrap the expression in INS so dummy indices are tracked, then  *)
+(* dispatch to fdiffINS which resolves any clash with the leg index           *)
+fdiff[lg_, e_] := fdiffINS[lg, INS[e]];
+
+(* ---- Feynman rules ---- *)
+(* differentiate wrt each leg in turn, then send the leftover fields to zero *)
+setZero[e_] := e /. x_ /; fieldQ[x] :> 0;
+functionalD[L_, legs_] := Module[{e = Expand[L]},
+   Do[e = Expand[fdiff[lg, e]], {lg, legs}];
+   Expand[setZero[e]]];
+
+(* tree-level vertex:  i * delta^n S / delta phi... , contracted, Dirac- and    *)
+(* index-canonicalised *)
+RemoveINS[e_] := Module[{L}, (e /. {INS -> L}) /. {L[a_] -> a}]
+feynmanRule[l_, legs_] := I recombineProjectors @ canonical @ diracSimplify @ contract @ functionalD[RemoveINS@l, legs];
+
+(* ====================================================================== *)
+(*  6. Formatting — MakeBoxes display rules (notebook output)              *)
+(*  Presentation layer: deliberately one centralised block of DownValues   *)
+(*  on MakeBoxes, regardless of which object each rule formats.             *)
+(* ====================================================================== *)
 
 Unprotect[MakeBoxes];
 
