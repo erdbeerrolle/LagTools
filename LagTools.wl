@@ -19,15 +19,19 @@ DeclareGrassmann[f_Symbol,lbl_] := (DeclareGrassmann[f]; Format[f] = lbl; f);
 DeclareBoson[h_Symbol] := (bosonQ[h] = True; h);
 DeclareBoson[h_Symbol, lbl_] := (DeclareBoson[h]; Format[h] = lbl; h);
 
+SetConjugate[h_Symbol, hc_Symbol] := (
+  h /: Conjugate[h] = hc;
+  h /: Conjugate[h[args__]] := hc[args];
+);
+
 (* Real fields: Conjugate[h] = h, electric charge = 0 *)
-DeclareRealBoson[h_Symbol] := (DeclareBoson[h]; h /: Conjugate[h] = h; ElectricCharge[h] = 0; h);
+DeclareRealBoson[h_Symbol] := (DeclareBoson[h]; SetConjugate[h, h]; ElectricCharge[h] = 0; h);
 DeclareRealBoson[h_Symbol, lbl_] := (DeclareRealBoson[h]; Format[h] = lbl; h);
 
 (* Complex-conjugate pairs: Conjugate[hp] = hm, charges +1/-1 by convention *)
 DeclareComplexBoson[hp_Symbol, hm_Symbol] := (
   DeclareBoson[hp]; DeclareBoson[hm];
-  hp /: Conjugate[hp] = hm;
-  hm /: Conjugate[hm] = hp;
+  SetConjugate[hp, hm]; SetConjugate[hm, hp];
   ElectricCharge[hp] = 1;
   ElectricCharge[hm] = -1;
   {hp, hm}
@@ -41,7 +45,7 @@ DeclareComplexBoson[hp_Symbol, hm_Symbol, lbl_] := (
 (*---- Parameter declarations ----*)
 DeclareComplexParam[p_Symbol]       := p;
 DeclareComplexParam[p_Symbol, lbl_] := (Format[p] = lbl; p);
-DeclareRealParam[p_Symbol]       := (DeclareComplexParam[p]; p /: Conjugate[p] = p; p);
+DeclareRealParam[p_Symbol]       := (DeclareComplexParam[p]; SetConjugate[p, p]; p);
 DeclareRealParam[p_Symbol, lbl_] := (DeclareRealParam[p]; Format[p] = lbl; p);
 
 (*----defaults----*)
@@ -151,10 +155,12 @@ ConjugateTranspose[ConjugateTranspose[a_]]:=a;
 Protect[ConjugateTranspose];
 
 Unprotect[Conjugate];
-Conjugate[h_[inds__]] /; properIndexStructureQ[inds] := Conjugate[h][inds];
+(*Conjugate[h_[inds__]] /; properIndexStructureQ[inds] := Conjugate[h][inds];*)
 Conjugate[ElectricCharge[f_]] := ElectricCharge[f];
 Conjugate[d[a_][b_]] := d[a][Conjugate[b]];
 Conjugate[INS[a___]] := INS[Conjugate[a]];
+Conjugate[a_Times] := Conjugate /@ a;
+Conjugate[eps3[args___]] := eps3[args]; Conjugate[kd3[args___]] := kd3[args];
 Protect[Conjugate];
 
 Unprotect[Dot];
@@ -218,13 +224,16 @@ SumOverIndices[expr_, dum_List] :=
  Module[{d = First[dum], rest = Rest[dum]},
   Sum[SumOverIndices[expr /. d :> Head[d][a], rest], {a, 1, 3}]];
 
-(* GISum: sum GI dummy indices; INS wrapper is preserved in each summand *)
-GISumINS[x_?indexFreeQ]:=x;
-GISumINS[INS[x_]] := With[{dum = dummyIndices[GI][x]}, SumOverIndices[INS[x], dum]];
-GISumINS[e_Plus]  := GISumINS /@ e;
-GISumINS[e_Times] := GISumINS /@ e;
-(*GISumINS[c_*INS[x_]] := With[{dum = dummyIndices[GI][x]}, If[Length[dum]===0,c*INS[x],c*SumOverIndices[INS[x], dum]]];*)
-GISum[e_]      := GISumINS[Expand[INS[e]]];
+(* IdxSum: sum GI dummy indices; INS wrapper is preserved in each summand *)
+IdxSumINS[_][x_?indexFreeQ]:=x;
+IdxSumINS[h_][INS[x_]] := With[{dum = dummyIndices[h][x]}, SumOverIndices[INS[x], dum]];
+IdxSumINS[h_][e_Plus]  := IdxSumINS[h] /@ e;
+IdxSumINS[h_][e_Times] := IdxSumINS[h] /@ e;
+(*IdxSumINS[c_*INS[x_]] := With[{dum = dummyIndices[GI][x]}, If[Length[dum]===0,c*INS[x],c*SumOverIndices[INS[x], dum]]];*)
+IdxSum[h_][e_]      := IdxSumINS[h][Expand[INS[e]]] /; MemberQ[{GI,FI}, h];
+
+GISum = IdxSum[GI];
+FISum = IdxSum[FI];
 
 (* =================================================================== *)
 (*  IndexNamespace (INS): expression wrapper that prevents dummy-index  *)
