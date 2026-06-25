@@ -57,6 +57,12 @@ VerificationTest[gw ** el,               gw NC[el],            TestID -> "nc-sca
 (* mixed Times argument: commuting part out, spinor part stays ordered *)
 VerificationTest[bar[el] ** (gw ga[LI[i[1]]]) ** el,
    gw (bar[el] ** ga[LI[i[1]]] ** el),                        TestID -> "nc-mixed-split"];
+(* nested NC flattens into a single chain *)
+VerificationTest[NC[bar[el], NC[ga[LI[i[1]]], el]],
+   NC[bar[el], ga[LI[i[1]]], el],                             TestID -> "nc-flatten"];
+(* adjacent ga0 pair cancels (ga0.ga0 = 1) — relied on by ConjugateTranspose chains *)
+VerificationTest[NC[bar[el], ga0, ga0, el],
+   NC[bar[el], el],                                           TestID -> "nc-ga0ga0-collapse"];
 
 (* ================================================================== *)
 (* 3. bar conjugate                                                   *)
@@ -155,6 +161,58 @@ VerificationTest[diracSimplify[ga[LI[i[1]]] ** cc ** PL],
 VerificationTest[diracSimplify[PL ** cc ** ga[LI[i[1]]]],
    cc ** ga[LI[i[1]]] ** PR,
    TestID -> "ds-ghost-float-then-commute"];
+
+(* ================================================================== *)
+(* 7b. ConjugateTranspose (dagger) and Hermiticity                    *)
+(* ================================================================== *)
+
+(* atomic Dirac rules *)
+VerificationTest[ConjugateTranspose[ga[LI[i[1]]]], NC[ga0, ga[LI[i[1]]], ga0], TestID -> "CT-gamma"];
+VerificationTest[ConjugateTranspose[ga0],          ga0,                        TestID -> "CT-ga0"];
+VerificationTest[ConjugateTranspose[ga5],          -NC[ga0, ga5, ga0],         TestID -> "CT-ga5"];
+VerificationTest[ConjugateTranspose[PL],           NC[ga0, PR, ga0],           TestID -> "CT-PL"];
+VerificationTest[ConjugateTranspose[PR],           NC[ga0, PL, ga0],           TestID -> "CT-PR"];
+VerificationTest[ConjugateTranspose[el],           NC[bar[el], ga0],           TestID -> "CT-fermion"];
+VerificationTest[ConjugateTranspose[bar[el]],      NC[ga0, el],                TestID -> "CT-barfermion"];
+
+(* NC-chain reversal: (nu-bar gamma^mu P_L el)^dagger = el-bar gamma^mu P_L nu
+   (h.c. of the charged current).  Exercises chain reversal AND the
+   ga0.ga0 -> 1 collapse together. *)
+VerificationTest[
+   diracSimplify[ConjugateTranspose[NC[bar[nu], ga[LI[i[1]]], PL, el]]],
+   NC[bar[el], ga[LI[i[1]]], PL, nu],
+   TestID -> "CT-chain-reversal-hc"];
+
+(* the vector current el-bar gamma^mu el is Hermitian: dagger returns it unchanged *)
+VerificationTest[
+   diracSimplify[ConjugateTranspose[NC[bar[el], ga[LI[i[1]]], el]]],
+   NC[bar[el], ga[LI[i[1]]], el],
+   TestID -> "CT-vector-current-hermitian"];
+
+(* involution: dagger-dagger is the identity (up to diracSimplify normal form) *)
+VerificationTest[
+   diracSimplify[ConjugateTranspose[ConjugateTranspose[NC[bar[nu], ga[LI[i[1]]], PL, el]]]],
+   diracSimplify[NC[bar[nu], ga[LI[i[1]]], PL, el]],
+   TestID -> "CT-involution"];
+
+(* Hermiticity round-trip on a coupled term (gw real): dagger-dagger preserves it.
+   Composes scalar Conjugate, chain reversal, ga0 collapse and bar/fermion CT. *)
+VerificationTest[
+   Expand[diracSimplify[ConjugateTranspose[ConjugateTranspose[
+      gw NC[bar[nu], ga[LI[i[1]]], PL, el]]]]],
+   Expand[diracSimplify[gw NC[bar[nu], ga[LI[i[1]]], PL, el]]],
+   TestID -> "CT-hermiticity-roundtrip"];
+
+(* dagger pushes through INS (the refactor's converted UpValue): CT[INS[x]] = INS[CT[x]] *)
+VerificationTest[
+   ConjugateTranspose[INS[bar[el[FI[i[1]]]]]],
+   INS[NC[ga0, el[FI[i[1]]]]],
+   TestID -> "CT-INS-pushthrough"];
+(* dagger inside INS on a full bilinear: INS preserved, bilinear is Hermitian *)
+VerificationTest[
+   ConjugateTranspose[INS[bar[el] ** ga[LI[i[1]]] ** el]],
+   INS[bar[el] ** ga[LI[i[1]]] ** el],
+   TestID -> "CT-INS-bilinear-hermitian"];
 
 (* ================================================================== *)
 (* 8. renorm substitution                                             *)
@@ -719,6 +777,17 @@ VerificationTest[
    ConjugateTranspose[Col[aa, bb]] . sigma[GI[3]] . Col[aa, bb],
    Conjugate[aa] aa - Conjugate[bb] bb,
    TestID -> "Col-bilinear-scalar"];
+
+(* NC of two doublets sums over the 2x2 components (Col owns NC via UpValue) *)
+VerificationTest[
+   NC[Col[bar[nu], bar[el]], Col[nu, el]],
+   NC[bar[nu], nu] + NC[bar[nu], el] + NC[bar[el], nu] + NC[bar[el], el],
+   TestID -> "Col-NC-two-doublets"];
+(* with an SU(2)-scalar (PL) sandwiched between the doublets *)
+VerificationTest[
+   NC[Col[bar[nu], bar[el]], PL, Col[nu, el]],
+   NC[bar[nu], PL, nu] + NC[bar[nu], PL, el] + NC[bar[el], PL, nu] + NC[bar[el], PL, el],
+   TestID -> "Col-NC-two-doublets-su2scalar"];
 
 (* ------------------------------------------------------------------ *)
 (*  INSFreeRule                                                        *)
