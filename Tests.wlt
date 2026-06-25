@@ -16,6 +16,8 @@ Get[FileNameJoin[{DirectoryName[$TestFileName], "LagTools.wl"}]];
 (* ---- fixtures: declare fields + real couplings once ---- *)
 DeclareBoson[Wp]; DeclareBoson[Wm]; DeclareBoson[Zb]; DeclareBoson[AA];
 DeclareFermion[nu]; DeclareFermion[el];
+DeclareBoson[W1]; DeclareBoson[W2]; DeclareBoson[W3];
+DeclareFermion[f1]; DeclareFermion[f2]; DeclareFermion[f3]; 
 DeclareGrassmann[cc];                       (* a ghost: bare Grassmann symbol *)
 (gw /: Conjugate[gw] := gw);                 (* declare couplings real *)
 (ee /: Conjugate[ee] := ee);
@@ -75,6 +77,24 @@ VerificationTest[d[LI[i[1]]][ga[LI[i[2]]]],    0,                 TestID -> "d-g
 VerificationTest[d[LI[i[1]]][bar[nu] ** el],
    d[LI[i[1]]][bar[nu]] ** el + bar[nu] ** d[LI[i[1]]][NC[el]],
    TestID -> "d-leibniz-chain"];
+
+(* d[mu] on INS: pushed inside and index conflicts resolved.
+   W1[LI[i[1]]] W2[LI[i[1]]] — LI[i[1]] is a dummy inside the INS.
+   d[LI[i[1]]] carries LI[i[1]] as a free index, which would clash with
+   the dummy.  The dummy must be renamed so it differs from i[1].
+   We check that inside the derivative's argument the index i[1] is gone
+   (it was renamed), while d[LI[i[1]]] itself still carries i[1]. *)
+VerificationTest[
+  With[{res = d[LI[i[1]]][INS[W1[LI[i[1]]] W2[LI[i[1]]]]]},
+    (* d[LI[i[1]]] is present somewhere in the result *)
+    !FreeQ[res, d[LI[i[1]]]] &&
+    (* inside every d[LI[i[1]]][arg], the original dummy i[1] is absent *)
+    AllTrue[
+      Cases[res, d[LI[i[1]]][arg_] :> arg, Infinity],
+      FreeQ[#, LI[i[1]]] &]
+  ],
+  True,
+  TestID -> "d-INS-renames-dummy-clashing-with-derivative-index"];
 
 (* ================================================================== *)
 (* 5. metric + contraction                                            *)
@@ -369,8 +389,6 @@ VerificationTest[
 (* 17. INS (IndexNamespace)                                            *)
 (* ================================================================== *)
 
-DeclareBoson[W1]; DeclareBoson[W2]; DeclareBoson[W3];
-
 (* Multiplication with no index conflict: inner expressions combined verbatim *)
 VerificationTest[
    INS[W1[GI[i[1]]] W2[GI[i[2]]]] * INS[W3[GI[i[3]]]],
@@ -381,8 +399,8 @@ VerificationTest[
 VerificationTest[
    With[{res = INS[W1[GI[i[1]]] W2[GI[i[1]]]] * INS[W2[GI[i[1]]] W3[GI[i[1]]]]},
      MatchQ[res, INS[_]] &&
-     (* the result must still contain the original first factor's i[1] *)
-     !FreeQ[res, GI[i[1]]] &&
+     (* the result must still contain the original first factor's i[1]--outdated *)
+     (*!FreeQ[res, GI[i[1]]] &&*)
      (* and the second factor's dummy must have been renamed to something else *)
      Length[DeleteDuplicates[
        Cases[res /. INS[e_] :> e, GI[i[n_Integer]] :> n, Infinity]]] === 2
@@ -392,9 +410,9 @@ VerificationTest[
 
 (* NC with bosonic INS: commuting content collapses NC to Times, then Times rule renames *)
 VerificationTest[
-   With[{res = NC[INS[W1[GI[i[1]]] W2[GI[i[1]]]], INS[W2[GI[i[1]]] W3[GI[i[1]]]]]},
-     MatchQ[res, INS[_]] &&
-     !FreeQ[res, GI[i[1]]] &&
+   With[{res = NC[INS[f1[GI[i[1]]] f2[GI[i[1]]]], INS[f2[GI[i[1]]] f3[GI[i[1]]]]]},
+     MatchQ[res, HoldPattern[INS[NC[__]]]] &&
+     (*!FreeQ[res, GI[i[1]]] &&*)
      Length[DeleteDuplicates[Cases[res /. INS[e_] :> e, GI[i[n_Integer]] :> n, Infinity]]] === 2
    ],
    True,
@@ -460,6 +478,110 @@ VerificationTest[
    ],
    True,
    TestID -> "INS-power-cube-renames-dummy"];
+
+(* Dummy in first clashes with free index in second, and vice versa.
+   The original bug renamed the free indices instead of the dummies.
+   Setup: a[FI[i[1]], FI[i[2]], FI[i[2]]]  — free i[1], dummy i[2]
+          b[FI[i[2]], FI[i[1]], FI[i[1]]]  — free i[2], dummy i[1]
+   Correct result: dummies renamed to fresh values; free indices i[1] and i[2]
+   untouched.  Combined expression must have exactly 4 distinct FI index values. *)
+VerificationTest[
+  With[{res = INS[a[FI[i[1]], FI[i[2]], FI[i[2]]]] *
+              INS[b[FI[i[2]], FI[i[1]], FI[i[1]]]]},
+    Length[DeleteDuplicates[
+      Cases[res /. INS[e_] :> e, FI[i[n_Integer]] :> n, Infinity]]] === 4
+  ],
+  True,
+  TestID -> "INS-times-free-dummy-cross-clash-4-indices"];
+
+(* Same setup: free index i[1] in the first factor must NOT be renamed —
+   a[FI[i[1]], _, _] must still appear in the result *)
+VerificationTest[
+  With[{res = INS[a[FI[i[1]], FI[i[2]], FI[i[2]]]] *
+              INS[b[FI[i[2]], FI[i[1]], FI[i[1]]]]},
+    !FreeQ[res /. INS[e_] :> e, a[FI[i[1]], _, _]]
+  ],
+  True,
+  TestID -> "INS-times-free-index-survives"];
+
+(* INS[a] * b where b is indexed but not INS-wrapped: b is absorbed into INS
+   and dummy conflicts are resolved.  Result must be a single INS with 2
+   distinct index values (one from a's dummy, one from b's dummy). *)
+VerificationTest[
+  With[{res = INS[W1[GI[i[1]]] W2[GI[i[1]]]] * W3[GI[i[1]]] W4[GI[i[1]]]},
+    MatchQ[res, HoldPattern[INS[_]]] &&
+    Length[DeleteDuplicates[
+      Cases[res /. INS[e_] :> e, GI[i[n_Integer]] :> n, Infinity]]] === 2
+  ],
+  True,
+  TestID -> "INS-times-absorb-indexed-non-INS"];
+
+(* NC variant: free-dummy cross-clash between two fermion bilinears *)
+VerificationTest[
+  With[{res = NC[INS[f1[GI[i[1]]] f2[GI[i[1]]]],
+               INS[f2[GI[i[1]]] f3[GI[i[1]]]]]},
+    MatchQ[res, HoldPattern[INS[NC[__]]]] &&
+    Length[DeleteDuplicates[
+      Cases[res /. INS[e_] :> e, GI[i[n_Integer]] :> n, Infinity]]] === 2
+  ],
+  True,
+  TestID -> "INS-NC-free-dummy-clash-2-distinct-indices"];
+
+(* ================================================================== *)
+(* 17b. INS inside Dot chains (lines 343-352 of LagTools.wl)         *)
+(* ================================================================== *)
+
+(* Two INS in a Dot chain: dummy conflicts resolved, result is a single INS[Dot[...]] *)
+VerificationTest[
+  With[{res = INS[W1[GI[i[1]]] W2[GI[i[1]]]] . INS[W2[GI[i[1]]] W3[GI[i[1]]]]},
+    MatchQ[res, HoldPattern[INS[_Dot]]] &&
+    Length[DeleteDuplicates[
+      Cases[res /. INS[e_] :> e, GI[i[n_Integer]] :> n, Infinity]]] === 2
+  ],
+  True,
+  TestID -> "INS-dot-two-INS-conflict-resolved"];
+
+(* Index-free factor to the right of INS: absorbed without conflict check *)
+VerificationTest[
+  INS[W1[GI[i[1]]] W2[GI[i[1]]]] . gw,
+  INS[Dot[W1[GI[i[1]]] W2[GI[i[1]]], gw]],
+  TestID -> "INS-dot-indexfree-right"];
+
+(* Index-free factor to the left of INS: absorbed without conflict check *)
+VerificationTest[
+  gw . INS[W1[GI[i[1]]] W2[GI[i[1]]]],
+  INS[Dot[gw, W1[GI[i[1]]] W2[GI[i[1]]]]],
+  TestID -> "INS-dot-indexfree-left"];
+
+(* Indexed non-INS to the right: absorbed into INS, dummy conflicts resolved *)
+VerificationTest[
+  With[{res = INS[W1[GI[i[1]]] W2[GI[i[1]]]] . W3[GI[i[1]]]},
+    MatchQ[res, HoldPattern[INS[_Dot]]] &&
+    Length[DeleteDuplicates[
+      Cases[res /. INS[e_] :> e, GI[i[n_Integer]] :> n, Infinity]]] === 2
+  ],
+  True,
+  TestID -> "INS-dot-indexed-non-INS-right"];
+
+(* Indexed non-INS to the left: absorbed into INS, dummy conflicts resolved,
+   order preserved (non-INS comes first inside Dot) *)
+VerificationTest[
+  With[{res = W3[GI[i[1]]] . INS[W1[GI[i[1]]] W2[GI[i[1]]]]},
+    MatchQ[res, HoldPattern[INS[_Dot]]] &&
+    Length[DeleteDuplicates[
+      Cases[res /. INS[e_] :> e, GI[i[n_Integer]] :> n, Infinity]]] === 2
+  ],
+  True,
+  TestID -> "INS-dot-indexed-non-INS-left"];
+
+(* Order of non-INS relative to INS content is preserved inside Dot.
+   b . INS[a] must give INS[Dot[b', a']] with b' first, not INS[Dot[a', b']] *)
+VerificationTest[
+  With[{res = W3[GI[i[1]]] . INS[W1[GI[i[1]]] W2[GI[i[1]]]]},
+    MatchQ[res /. INS[e_] :> e, Dot[W3[_], __]]
+  ],
+  True,
+  TestID -> "INS-dot-indexed-non-INS-left-order"];
 
 (* ================================================================== *)
 (* 18. GISum                                                           *)
@@ -616,3 +738,61 @@ VerificationTest[
       dq[FI[i[1]]] * Ud[FI[i[1]], FI[i[2]]] * Ud[FI[i[2]], FI[i[c]]]]},
    INS[dq[FI[i[1]]] * Ud[FI[i[1]], FI[i[2]]] * Ud[FI[i[2]], FI[i[3]]]],
    TestID -> "INSRule-two-explicit-no-clash"];
+
+(* ================================================================== *)
+(* 20. INS absorption into NC chains                                   *)
+(* ================================================================== *)
+
+(* index-free element on the right of INS is absorbed without conflict check *)
+VerificationTest[
+   NC[INS[W1[GI[i[1]]] W2[GI[i[1]]]], PL],
+   INS[NC[W1[GI[i[1]]] W2[GI[i[1]]], PL]],
+   TestID -> "INS-NC-absorb-indexfree-right"];
+
+(* index-free element on the left of INS is absorbed without conflict check *)
+VerificationTest[
+   NC[PR, INS[W1[GI[i[1]]] W2[GI[i[1]]]]],
+   INS[NC[PR, W1[GI[i[1]]] W2[GI[i[1]]]]],
+   TestID -> "INS-NC-absorb-indexfree-left"];
+
+(* singleton NC[INS[a]] collapses to INS[NC[a]] *)
+VerificationTest[
+   NC[INS[W1[GI[i[1]]] W2[GI[i[1]]]]],
+   INS[NC[W1[GI[i[1]]] W2[GI[i[1]]]]],
+   TestID -> "INS-NC-singleton"];
+
+(* sandwiched index-free: NC[INS[a], PL, INS[b]] with bosonic content.
+   W bosons commute out of NC, so the result is an index-free prefactor times
+   a single INS — no remaining NC[..., INS[...], ...] in the output. *)
+VerificationTest[
+   With[{res = NC[INS[W1[GI[i[1]]] W2[GI[i[1]]]], PL, INS[W1[GI[i[1]]] W3[GI[i[1]]]]]},
+      (* no INS should remain as a direct argument of NC *)
+      FreeQ[res, HoldPattern[NC[___, _INS, ___]]] &&
+      (* result still contains a single INS *)
+      !FreeQ[res, _INS] &&
+      (* two distinct GI dummy indices from the merged product *)
+      Length[DeleteDuplicates[Cases[res, GI[i[n_Integer]] :> n, Infinity]]] === 2
+   ],
+   True,
+   TestID -> "INS-NC-absorb-PL-sandwich"];
+
+(* bar pushes through INS *)
+VerificationTest[
+   bar[INS[W1[GI[i[1]]] W2[GI[i[1]]]]],
+   INS[bar[W1[GI[i[1]]] W2[GI[i[1]]]]],
+   TestID -> "INS-bar-pushthrough"];
+
+(* full flavor-matrix example: NC[INS[a], PL, INS[b]] with fermionic/FI content.
+   After all absorptions the result contains no NC with INS arguments,
+   and the merged INS holds 4 distinct FI dummy index slots. *)
+VerificationTest[
+   With[{res = NC[
+         INS[bar[dq[FI[i[1]]]] Ud[FI[i[1]], FI[i[2]]]],
+         PL,
+         INS[Conjugate[Ud[FI[i[2]], FI[i[1]]]] dq[FI[i[2]]]]]},
+      FreeQ[res, HoldPattern[NC[___, _INS, ___]]] &&
+      !FreeQ[res, _INS] &&
+      Length[DeleteDuplicates[Cases[res, FI[i[n_Integer]] :> n, Infinity]]] === 4
+   ],
+   True,
+   TestID -> "INS-NC-flavor-matrix-fullexample"];

@@ -93,18 +93,18 @@ DeclareComplexParam[V,"V"]
 (* COVARIANT DERIVATIVE AND FIELD STRENGHTS                               *)
 (* ====================================================================== *)
 
-(* gauge-covariant derivative for EW gauge symmetry *)
+(* gauge-covariant derivative for EW gauge symmetry -- assumption: argument of cov d has no indices conflicting with defnition of covd *)
 DeclareCovD[CovD, "D", 
-  CovD[mu_][f_] :> 
+  CovD[mu_][f_]:>
    INS[d[mu][f] - I*g2*W[GI[i[1]], mu]*SU2T[GI[i[1]]][f] + I*g1*B[mu]*U1Y[f]]];
 
 (* Field strength tensor for W^a *)
 (* dynamic indices and index name space to avoid accidental doubled indices *)
 DeclareFieldStr[WFieldStr, "W", 
-  WFieldStr[GI[i[c_]], LI[a_], LI[b_]] :> 
-   INS[d[LI[a]][W[GI[i[c]], LI[b]]] - d[LI[b]][W[GI[i[c]], LI[a]]] + 
-     I*g2*eps3[GI[i[c]], GI[i[c + 1]], GI[i[c + 2]]]*
-      W[GI[i[c + 1]], LI[a]]*W[GI[i[c + 2]], LI[b]]]];
+  INSRule[WFieldStr[GI[i[c_]], LI[a_], LI[b_]],
+   d[LI[a]][W[GI[i[c]], LI[b]]] - d[LI[b]][W[GI[i[c]], LI[a]]] + 
+     I*g2*eps3[GI[i[c]], GI[i[1]], GI[i[2]]]*
+      W[GI[i[1]], LI[a]]*W[GI[i[2]], LI[b]]]];
 
 (* Field strength tensor for B *)
 DeclareFieldStr[BFieldStr, "B", 
@@ -150,23 +150,20 @@ LYukawa = (LYukawaLept + LYukawaUp + LYukawaDown) +
 LClass = LFerm + LGauge + LHiggs + LYukawa
 
 
-LFermFull = 
- LFerm // ExplCovD // RemoveINS // GISum // ExplGaugeMult // 
-    diracSimplify // Expand // RemoveINS;
-
-LGaugeFull = LGauge // ExplFieldStr // GISum // RemoveINS // Expand // 
-  canonical // RemoveINS;
-
-LHiggsFull = 
- LHiggs // ExplCovD // RemoveINS // Expand // ExplGaugeMult // 
-     Expand // GISum // Expand // RemoveINS;
-
+LFermFull = LFerm // ExplCovD // GISum // ExplGaugeMult // diracSimplify // Expand;
+LGaugeFull = LGauge // ExplFieldStr // GISum // canonical;
+LHiggsFull = LHiggs // ExplCovD // ExplGaugeMult // GISum // Expand;
 LYukawaFull = LYukawa // ExplGaugeMult // Expand // diracSimplify;
 
+
+LClassFull = LFermFull + LGaugeFull + LHiggsFull + LYukawaFull;
+
+
 (* ====================================================================== *)
-(* PHYSICAL BASIS: GAUGE-FIELD ROTATION + PARAMETER SUBSTITUTION          *)
+(* PHYSICAL BASIS (MASS EIGENSTATES)                                      *)
 (* ====================================================================== *)
 
+(*  ---- Part I: Gauge-field rotation ----  *)
 gaugeFieldRotation = {
   W[GI[1], LI[mu_]] :> (Wp[LI[mu]] + Wm[LI[mu]]) / Sqrt[2],
   W[GI[2], LI[mu_]] :> I (Wp[LI[mu]] - Wm[LI[mu]]) / Sqrt[2],
@@ -182,13 +179,81 @@ paramSubs = {
   mu2 -> MH^2 / 2
 };
 
-(* Diagonal Yukawa in mass-eigenstate basis *)
-diagMassMatSubs[y_,m_] := Flatten[Table[
-  y[FI[i], FI[j]] :> If[i == j, Sqrt[2] m[FI[i]]*ee/(2 sw MW), 0], {i, 1, 3}, {j, 1, 3}]]
+GaugeBasisChange[e_] := e //. Join[gaugeFieldRotation, paramSubs];
 
-mixingSubs = {}
+(*  ---- Part II: Fermion mass basis  ----  *)
 
-toPhysical = Join[gaugeFieldRotation, paramSubs, diagMassMatSubs[yl,ml],diagMassMatSubs[yu,mu],diagMassMatSubs[yd,md]];
+(* Components of unitary basis trafo matrices *)
+DeclareComplexParam[Ul, Superscript["U", "(l)"]];
+DeclareComplexParam[Ud, Superscript["U", "(d)"]];
+DeclareComplexParam[Uu, Superscript["U", "(u)"]];
+(* diagonal mass matrices *)
+DeclareRealParam[Mdiagl, Superscript["M", "(l)"]];
+DeclareRealParam[Mdiagd, Superscript["M", "(d)"]];
+DeclareRealParam[Mdiagu, Superscript["M", "(u)"]];
+
+MassMatSub[e_] := e //.{
+  yl[FI[a_], FI[b_]] :> Mdiagl[FI[a], FI[b]]*Sqrt[2] * ee/(2 sw MW),
+  yu[FI[a_], FI[b_]] :> Mdiagu[FI[a], FI[b]]*Sqrt[2] * ee/(2 sw MW),
+  yd[FI[a_], FI[b_]] :> Mdiagd[FI[a], FI[b]]*Sqrt[2] * ee/(2 sw MW)
+};
+
+ExplMassMat[e_] := e //. {
+  Mdiagl[FI[a_], FI[b_]] :> kd3[FI[a], FI[b]]* ml[FI[a]],
+  Mdiagu[FI[a_], FI[b_]] :> kd3[FI[a], FI[b]]* mu[FI[a]],
+  Mdiagd[FI[a_], FI[b_]] :> kd3[FI[a], FI[b]]* md[FI[a]]
+};
+
+basisChangeFields = {
+   INSRule[dq[FI[i[c_]]], dq[FI[i[1]]]*Conjugate[Ud[FI[i[1]], FI[i[c]]]]],
+   INSRule[uq[FI[i[c_]]], uq[FI[i[1]]]*Conjugate[Uu[FI[i[1]], FI[i[c]]]]],
+   INSRule[el[FI[i[c_]]], el[FI[i[1]]]*Conjugate[Ul[FI[i[1]], FI[i[c]]]]],
+   INSRule[nu[FI[i[c_]]], nu[FI[i[1]]]*Conjugate[Ul[FI[i[1]], FI[i[c]]]]]};
+
+diagMassMatSubs[y_, u_] := 
+  INSRule[y[FI[i[a_]], FI[i[b_]]], 
+   y[FI[i[1]], FI[i[2]]]*u[FI[i[2]], FI[i[b]]]*
+    Conjugate[u[FI[i[1]], FI[i[a]]]]];
+
+basisChangeYukawaMat = {
+  diagMassMatSubs[yl, Ul], 
+  diagMassMatSubs[yu, Uu], 
+  diagMassMatSubs[yd, Ud]
+};
+
+unitarity = {
+   (* Unitarity Uu *)
+   Times[r1___, Uu[FI[a_], FI[b_]], r2___, Conjugate[Uu[FI[a_], FI[c_]]],
+      r3___] :> kd3[FI[b], FI[c]] Times[r1, r2, r3], 
+   Times[r1___, Uu[FI[a_], FI[b_]], r2___, Conjugate[Uu[FI[c_], FI[b_]]],
+      r3___] :> kd3[FI[a], FI[c]] Times[r1, r2, r3],
+   (* Unitarity: Ud *)
+   Times[r1___, Ud[FI[a_], FI[b_]], r2___, Conjugate[Ud[FI[a_], FI[c_]]],
+      r3___] :> kd3[FI[b], FI[c]] Times[r1, r2, r3], 
+   Times[r1___, Ud[FI[a_], FI[b_]], r2___, Conjugate[Ud[FI[c_], FI[b_]]],
+      r3___] :> kd3[FI[a], FI[c]] Times[r1, r2, r3],
+   (* Unitarity: Ul *)
+   Times[r1___, Ul[FI[a_], FI[b_]], r2___, Conjugate[Ul[FI[a_], FI[c_]]],
+      r3___] :> kd3[FI[b], FI[c]] Times[r1, r2, r3], 
+   Times[r1___, Ul[FI[a_], FI[b_]], r2___, Conjugate[Ul[FI[c_], FI[b_]]],
+      r3___] :> kd3[FI[a], FI[c]] Times[r1, r2, r3]
+  };
+
+ckmdef = {
+   (* CKM: Uu.Ud^dagger *)
+   Times[r1___, Uu[FI[a_], FI[b_]], r2___, Conjugate[Ud[FI[c_], FI[b_]]],
+      r3___] :> V[FI[a], FI[c]] Times[r1, r2, r3],
+   (* Ud.Uu^dagger *)
+   Times[r1___, Conjugate[Uu[FI[a_], FI[b_]]], r2___, 
+     Ud[FI[c_], FI[b_]], r3___] :> 
+    Conjugate[V[FI[a], FI[c]]] Times[r1, r2, r3]
+  };
+
+FermionBasisChange[e_] := ((e /. Join[basisChangeFields, basisChangeYukawaMat]) //. Join[unitarity, ckmdef]) // contract // MassMatSub;
+
+(*  ---- full basis transformation    ----  *)
+
+toPhysical[e_] := e // FermionBasisChange // GaugeBasisChange;
 
 (* ====================================================================== *)
 (* GAUGE TRANSFORMATIONS                                                  *)
@@ -295,8 +360,9 @@ Lghost = Expand[
 (*    feynmanRules["A-Wp-Wm"]    (*  AWW vertex  *)                      *)
 (*    Keys[feynmanRules]          (*  list all computed vertices  *)       *)
 (* ====================================================================== *)
-LClassFull=LClass // ExplGaugeMult // ExplFieldStr // ExplCovD
-Ltotal = Expand[LClass /. toPhysical] + Lfix + Lghost;
+
+Ltotal = (LClassFull // toPhysical // Expand // canonical // 
+   RemoveINS) + Lghost + Lfix;
 
 feynmanRules = <||>;
 
