@@ -87,8 +87,8 @@ g[LI[i[a_]], LI[i[a_]]] /; IntegerQ[a] := 4;
 
 (* ---- Kronecker delta for flavour indices and su2 gauge indices ---- delta symmetric;  delta_{i}^{i} = 3 *)
 SetAttributes[kd3, Orderless];
-kd3[h_[i[a_]], h_[i[a_]]] /; IntegerQ[a] && MemberQ[h, {FI, GI}] := 3;
-kd3[h_[a_],h_[a_]] /; IntegerQ[a] && MemberQ[h, {FI, GI}] := 1;
+kd3[h_[i[a_]], h_[i[a_]]] /; IntegerQ[a] && MemberQ[{FI, GI}, h] := 3;
+kd3[h_[a_],h_[a_]] /; IntegerQ[a] && MemberQ[{FI, GI}, h] := 1;
 
 (* ---- SU(2) Levi-Civita / structure constant: eps3[a,b,c] = epsilon^{abc} ---- *)
 eps3[GI[a_Integer], GI[b_Integer], GI[c_Integer]] := Signature[{a, b, c}];
@@ -301,6 +301,23 @@ Unprotect[Dot];
 INS /: HoldPattern[Dot[x___, INS[a_], INS[b_], y___]] :=
   Dot[x, INS[Dot[a, resolveIndexConflicts[a, b]]], y];
 Protect[Dot];
+
+
+(*Define custom rules with INSRule, user can enter plain dummy indices i[1], i[2], ... in the RHS of the rule which are appropriately renamed not to coincide with anny pattern indices on replacement. *)
+FreeIdx[taken : {__Integer}, n_Integer] := 
+  Complement[Range[1, Length[taken] + n], taken][[n]];
+FreeIdc[taken_List, e_] := e /. {i[n_Integer] :> i[FreeIdx[taken, n]]};
+SetAttributes[INSRule, HoldAll];
+INSRule[lhs_, rhs_] :=
+  Module[{patternVars, freshVars, newLhs, newRhs}, 
+   patternVars = 
+    DeleteDuplicates@
+     Cases[Unevaluated[rhs], i[s_Symbol] :> s, Infinity];
+   freshVars = Table[Unique[], {Length[patternVars]}];
+   newLhs = lhs /. Thread[patternVars -> freshVars];
+   newRhs = 
+    INS[FreeIdc[freshVars, rhs /. Thread[patternVars -> freshVars]]];
+   Evaluate[newLhs] :> Evaluate[newRhs]];
 
 (* =================================================================== *)
 (*  Dirac-chain normaliser                                              *)

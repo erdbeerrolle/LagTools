@@ -85,6 +85,12 @@ VerificationTest[g[LI[i[1]], LI[i[2]]], g[LI[i[2]], LI[i[1]]],  TestID -> "g-sym
 VerificationTest[contract[g[LI[i[1]], LI[i[2]]] AA[LI[i[2]]]],  AA[LI[i[1]]],
    TestID -> "contract-vector"];
 
+(* kd3 trace (sum rule) and off-diagonal *)
+VerificationTest[kd3[FI[i[1]], FI[i[1]]], 3, TestID -> "kd3-FI-trace"];
+VerificationTest[kd3[GI[i[1]], GI[i[1]]], 3, TestID -> "kd3-GI-trace"];
+VerificationTest[kd3[FI[i[1]], FI[i[2]]], kd3[FI[i[2]], FI[i[1]]], TestID -> "kd3-symmetric"];
+VerificationTest[contract[kd3[FI[i[1]], FI[i[2]]] el[FI[i[2]]]], el[FI[i[1]]], TestID -> "kd3-contract-FI"];
+
 (* ================================================================== *)
 (* 6. dummy-index canonicalization                                    *)
 (* ================================================================== *)
@@ -585,3 +591,28 @@ VerificationTest[
    ConjugateTranspose[Col[aa, bb]] . sigma[GI[3]] . Col[aa, bb],
    Conjugate[aa] aa - Conjugate[bb] bb,
    TestID -> "Col-bilinear-scalar"];
+
+(* ------------------------------------------------------------------ *)
+(*  INSFreeRule                                                        *)
+(* ------------------------------------------------------------------ *)
+
+(* Basic renaming: matched index i[1] forces explicit i[1] -> i[2] *)
+VerificationTest[
+   dq[FI[i[1]]] /. {INSRule[dq[FI[i[c_]]],
+      dq[FI[i[1]]] * Conjugate[Ud[FI[i[1]], FI[i[c]]]]]},
+   INS[Conjugate[Ud[FI[i[2]], FI[i[1]]]] dq[FI[i[2]]]],
+   TestID -> "INSRule-rename-clash"];
+
+(* No clash: matched index i[2] leaves explicit i[1] as-is *)
+VerificationTest[
+   dq[FI[i[2]]] /. {INSRule[dq[FI[i[c_]]],
+      dq[FI[i[1]]] * Conjugate[Ud[FI[i[1]], FI[i[c]]]]]},
+   INS[Conjugate[Ud[FI[i[1]], FI[i[2]]]] dq[FI[i[1]]]],
+   TestID -> "INSRule-no-clash"];
+
+(* Two explicit indices with a higher matched index: both must be renamed *)
+VerificationTest[
+   dq[FI[i[3]]] /. {INSRule[dq[FI[i[c_]]],
+      dq[FI[i[1]]] * Ud[FI[i[1]], FI[i[2]]] * Ud[FI[i[2]], FI[i[c]]]]},
+   INS[dq[FI[i[1]]] * Ud[FI[i[1]], FI[i[2]]] * Ud[FI[i[2]], FI[i[3]]]],
+   TestID -> "INSRule-two-explicit-no-clash"];
