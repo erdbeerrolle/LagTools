@@ -172,7 +172,14 @@ VerificationTest[
 (* ================================================================== *)
 
 VerificationTest[fdiff[{bar[nu], None,
-  k2}, (gw/Sqrt[2]) (bar[nu] ** ga[LI[i[1]]] ** PL ** el) Wp[LI[i[1]]]],(gw*NC[ga[LI[i[1]]], PL, el]*Wp[LI[i[1]]])/Sqrt[2],TestID->"fdiff"];
+  k2}, (gw/Sqrt[2]) (bar[nu] ** ga[LI[i[1]]] ** PL ** el) Wp[LI[i[1]]]],(gw*INS[NC[ga[LI[i[1]]], PL, el]*Wp[LI[i[1]]]])/Sqrt[2],TestID->"fdiff"];
+
+(* dummy clash resolution: leg index i[1] clashes with dummy i[1] in expression; *)
+(* after contraction the result must equal the clash-free case *)
+VerificationTest[
+  contract[fdiff[{AA, LI[i[1]], k1}, AA[LI[i[1]]] * AA[LI[i[1]]]]],
+  2 INS[AA[LI[i[1]]]],
+  TestID -> "fdiff-dummy-clash-resolution"];
 
 (* charged-current W vertex: purely left-handed — plain input *)
 VerificationTest[
@@ -206,7 +213,7 @@ VerificationTest[
 (* Tested directly on fdiff to isolate the rule (no spurious contraction).     *)
 VerificationTest[
    fdiff[{AA, LI[i[2]], k1}, d[LI[i[1]]][AA[LI[i[3]]]]],
-   (-I k1[LI[i[1]]]) g[LI[i[2]], LI[i[3]]],
+   (-I) INS[k1[LI[i[1]]] * g[LI[i[2]], LI[i[3]]]],
    TestID -> "fdiff-derivative-momentum"];
 
 (* ================================================================== *)

@@ -412,37 +412,44 @@ renormMix[h1_, h2_, dZ11_, dZ12_, dZ21_, dZ22_] := {
    h2          :> (dZ21/2) h1 + (1 + dZ22/2) h2};
    
 (* ---- functional derivative ---- *)
-fdiff[lg_, a_Plus]     := fdiff[lg, #] & /@ a;
-(*fdiff[lg_, INS[x_]]    := INS[fdiff[lg, x]];*)
-fdiff[lg_, c_ * x_]   := c fdiff[lg, x] /; STindepQ[c];
-fdiff[lg_, c_]         := 0 /; STindepQ[c];
-fdiff[lg_, Times[a_, b__]] := fdiff[lg, a] Times[b] + a fdiff[lg, Times[b]];
-fdiff[lg_, Power[b_, n_Integer?Positive]] := n b^(n - 1) fdiff[lg, b];
+(* fdiffINS operates on bare or INS-wrapped expressions.  The INS rule       *)
+(* renames dummies in x that clash with the leg index xi before recursing,   *)
+(* mirroring the same pattern used in d[mu_][HoldPattern[INS[a_]]].          *)
+fdiffINS[lg_, a_Plus]     := fdiffINS[lg, #] & /@ a;
+fdiffINS[{f_, xi_, p_}, HoldPattern[INS[x_]]] := INS[fdiffINS[{f, xi, p}, resolvedE2[xi, x]]];
+fdiffINS[lg_, c_ * x_]   := c fdiffINS[lg, x] /; STindepQ[c];
+fdiffINS[lg_, c_]         := 0 /; STindepQ[c];
+fdiffINS[lg_, Times[a_, b__]] := fdiffINS[lg, a] Times[b] + a fdiffINS[lg, Times[b]];
+fdiffINS[lg_, Power[b_, n_Integer?Positive]] := n b^(n - 1) fdiffINS[lg, b];
 
 (* functional differentiation of field derivatives with transition to         *)
 (* momentum space                                                             *)
-fdiff[{f_, xi_, p_}, HoldPattern[d[m_][z_]]] :=
-  (-I p[m]) fdiff[{f, xi, p}, z];
+fdiffINS[{f_, xi_, p_}, HoldPattern[d[m_][z_]]] :=
+  (-I p[m]) fdiffINS[{f, xi, p}, z];
 
 (* delta phi_LI1 / delta phi_LI2 *)
-fdiff[{f_, LI[a_], p_}, f_[LI[b_]]] := g[LI[a], LI[b]];
-fdiff[{f_, h_[a_], p_}, f_[h_[b_]]] := kd3[h[a], h[b]] /; MemberQ[{GI, FI}, h];
+fdiffINS[{f_, LI[a_], p_}, f_[LI[b_]]] := g[LI[a], LI[b]];
+fdiffINS[{f_, h_[a_], p_}, f_[h_[b_]]] := kd3[h[a], h[b]] /; MemberQ[{GI, FI}, h];
 (* delta bar[f]_h1 / delta bar[f]_h2  (anti-fermion with flavor/color index) *)
-fdiff[{bar[f_], h_[a_], p_}, bar[f_[h_[b_]]]] := kd3[h[a], h[b]] /; MemberQ[{GI, FI}, h];
+fdiffINS[{bar[f_], h_[a_], p_}, bar[f_[h_[b_]]]] := kd3[h[a], h[b]] /; MemberQ[{GI, FI}, h];
 (* delta phi / delta phi *)
-fdiff[{f_, None, _}, f_] := 1 /; fieldQ[f];
+fdiffINS[{f_, None, _}, f_] := 1 /; fieldQ[f];
 (* delta theta / delta theta  (gauge parameters: bosonic, no Grassmann sign) *)
-(*fdiff[{f_, None, _}, f_] := 1 /; gaugeParamQ[f];*)
+(*fdiffINS[{f_, None, _}, f_] := 1 /; gaugeParamQ[f];*)
 
 (* graded Leibniz over a chain. pick up (-1)^(#odd factors to the left)      *)
 (* when the derivative is odd.                                               *)
 GrassmFact[a_,l_]:=If[!oddQ[a],1,Power[-1,Count[l, _?oddQ]]];
-fdiff[{f_, xi_, p_}, ch_NC] := With[{l = List @@ ch},
-   Sum[GrassmFact[f,Take[l,n-1]]*NC@@MapAt[fdiff[{f, xi, p},#]&,l,n],
+fdiffINS[{f_, xi_, p_}, ch_NC] := With[{l = List @@ ch},
+   Sum[GrassmFact[f,Take[l,n-1]]*NC@@MapAt[fdiffINS[{f, xi, p},#]&,l,n],
 {n,1,Length[l]}]
 ];
 (* anything independent of the leg field -> 0 *)
-fdiff[{f_, _, _}, x_] := 0 /; FreeQ[x, f];
+fdiffINS[{f_, _, _}, x_] := 0 /; FreeQ[x, f];
+
+(* public API: wrap the expression in INS so dummy indices are tracked, then  *)
+(* dispatch to fdiffINS which resolves any clash with the leg index           *)
+fdiff[lg_, e_] := fdiffINS[lg, INS[e]];
 
 (* ---- Feynman rules ---- *)
 (* differentiate wrt each leg in turn, then send the leftover fields to zero *)
