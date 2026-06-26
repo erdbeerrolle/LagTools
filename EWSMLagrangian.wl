@@ -96,7 +96,7 @@ DeclareComplexParam[V,"V"]
 (* gauge-covariant derivative for EW gauge symmetry -- assumption: argument of cov d has no indices conflicting with defnition of covd *)
 DeclareCovD[CovD, "D", 
   CovD[mu_][f_]:>
-   INS[d[mu][f] - I*g2*W[GI[i[1]], mu]*SU2T[GI[i[1]]][f] + I*g1*B[mu]*U1Y[f]]];
+   INS[d[mu][f] - I*g2*W[GI[i[1]], mu]*SU2T[GI[i[1]]][f] + I/2*g1*B[mu]*U1Y[f]]];
 
 (* Field strength tensor for W^a *)
 (* dynamic indices and index name space to avoid accidental doubled indices *)
