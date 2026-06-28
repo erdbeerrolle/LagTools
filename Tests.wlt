@@ -871,3 +871,93 @@ VerificationTest[
    ],
    True,
    TestID -> "INS-NC-flavor-matrix-fullexample"];
+
+(* ================================================================== *)
+(* 21. Gauge structure: ExplGaugeMult / ExplCovD order-independence    *)
+(*                                                                     *)
+(*  Regressions for bugs where applying ExplGaugeMult BEFORE ExplCovD  *)
+(*  (the doublet symbol is expanded to its component Col first) gave   *)
+(*  wrong results, while ExplCovD-first worked.                        *)
+(* ================================================================== *)
+
+DeclareRealParam[g1]; DeclareRealParam[g2];
+DeclareRealBoson[Bb]; DeclareRealBoson[Wb];
+
+(* EW-style covariant derivative: d - i g2 W^a T^a + i/2 g1 B Y *)
+DeclareCovD[CovDew, "D",
+   CovDew[mu_][f_] :> INS[d[mu][f]
+      - I*g2*Wb[GI[i[1]], mu]*SU2T[GI[i[1]]][f]
+      + I/2*g1*Bb[mu]*U1Y[f]]];
+
+(* ---- root cause: a doublet column is NOT an SU(2) scalar ---- *)
+VerificationTest[su2ScalarQ[Col[phip, HH]], False,
+   TestID -> "col-not-su2scalar"];
+VerificationTest[
+   scalarQ[CovDew[LI[i[1]]][Col[phip, (v + HH + I*chi)/Sqrt[2]]]],
+   False,
+   TestID -> "covD-of-col-not-scalar"];
+
+(* ---- bug 2: an index shared across the two Col entries is ONE slot ---- *)
+VerificationTest[
+   dummyIndices[GI][Col[aa[GI[i[1]]], bb[GI[i[1]]]]],
+   {},
+   TestID -> "col-shared-index-not-dummy"];
+VerificationTest[
+   dummyIndices[GI][qq[GI[i[1]]]*Col[aa[GI[i[1]]], bb[GI[i[1]]]]],
+   {GI[i[1]]},
+   TestID -> "col-index-contracts-once"];
+(* a constant upper component must not hide the index in the lower one *)
+VerificationTest[
+   extractIndices[GI][Col[1, bb[GI[i[1]]]]],
+   {i[1]},
+   TestID -> "col-constant-entry-keeps-index"];
+
+(* ---- bare fields are treated as SU(2) singlets by both generators ---- *)
+DeclareRealBoson[loneS];                 (* Q = 0 real scalar, unregistered *)
+DeclareComplexBoson[loneP, loneM];       (* Q[loneP] = +1 *)
+VerificationTest[U1Y[loneS], 0,                  TestID -> "U1Y-singlet-fallback-neutral"];
+VerificationTest[U1Y[loneP], 2*ElectricCharge[loneP]*loneP, TestID -> "U1Y-singlet-fallback-charged"];
+VerificationTest[SU2T[GI[i[1]]][loneS], 0,       TestID -> "SU2T-singlet-fallback"];
+(* non-fields must NOT trigger the singlet fallback -> stay unevaluated *)
+VerificationTest[U1Y[loneS + loneP],   U1Y[loneS + loneP],   TestID -> "U1Y-nonfield-unevaluated"];
+VerificationTest[SU2T[GI[i[1]]][loneS + loneP], SU2T[GI[i[1]]][loneS + loneP],
+   TestID -> "SU2T-nonfield-unevaluated"];
+(* a doublet symbol awaiting ExplGaugeMult must NOT be annihilated *)
+VerificationTest[SU2T[GI[i[1]]][Phi], SU2T[GI[i[1]]][Phi], TestID -> "SU2T-doublet-symbol-symbolic"];
+
+(* ---- bug 3: U1Y recovers the multiplet hypercharge from a column ---- *)
+VerificationTest[
+   U1Y[Col[phip, (v + HH + I*chi)/Sqrt[2]]],
+   Hypercharge[Phi]*Col[phip, (v + HH + I*chi)/Sqrt[2]],
+   TestID -> "U1Y-doublet-column"];
+(* the daggered column (from ConjugateTranspose[Phi]) carries the same Y *)
+VerificationTest[
+   U1Y[Col[phim, (v + HH - I*chi)/Sqrt[2]]],
+   Hypercharge[Phi]*Col[phim, (v + HH - I*chi)/Sqrt[2]],
+   TestID -> "U1Y-conjugate-column"];
+
+(* ---- bug 1: (D_mu X)^dagger is the conjugate rep: sigma moves to the
+        RIGHT of the column, no Pauli matrix left dangling on a scalar ---- *)
+(* CT of an unexpanded covariant derivative stays symbolic until ExplCovD *)
+VerificationTest[
+   MatchQ[
+      ConjugateTranspose[CovDew[LI[i[1]]][Col[phip, (v + HH + I*chi)/Sqrt[2]]]],
+      _ConjugateTranspose],
+   True,
+   TestID -> "CT-covD-stays-symbolic"];
+(* once expanded, daggering gives the conjugate rep: sigma sits to the RIGHT of
+   the column (no Pauli matrix dangling at the head of a Dot) *)
+VerificationTest[
+   Cases[
+      ExplCovD[ConjugateTranspose[CovDew[LI[i[1]]][Col[phip, (v + HH + I*chi)/Sqrt[2]]]]],
+      Dot[sigma[_], ___], Infinity],
+   {},
+   TestID -> "CT-covD-sigma-on-right"];
+
+(* ---- headline: |D Phi|^2 is identical in both expansion orders ---- *)
+VerificationTest[
+   Module[{dphi = ConjugateTranspose[CovDew[LI[i[1]]][Phi]] . CovDew[LI[i[1]]][Phi]},
+      canonical[Expand[GISum[ExplGaugeMult[ExplCovD[dphi]]]]] ===
+      canonical[Expand[GISum[ExplCovD[ExplGaugeMult[dphi]]]]]],
+   True,
+   TestID -> "covD-order-independence-higgs"];

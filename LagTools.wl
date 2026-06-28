@@ -73,7 +73,9 @@ STindepQ[x_]     := FreeQ[stripMeta[x], _?fieldQ];
 diracScalarQ[x_] := FreeQ[stripMeta[x], _?fermionQ | _?diracMatQ];
 su2MatQ[_]        := False;
 su2MatQ[sigma[_]] := True;
-su2ScalarQ[x_] := FreeQ[x, _?su2MatQ | _?su2DoubletQ];
+(* A Col is an SU(2) doublet/multiplet vector, never an SU(2) scalar, even
+   after its symbolic head has been expanded to explicit components. *)
+su2ScalarQ[x_] := FreeQ[x, _?su2MatQ | _?su2DoubletQ | _Col];
 scalarQ[x_] := diracScalarQ[x] && su2ScalarQ[x];
 
 properIndexStructureQ[inds__] := And @@ (MemberQ[$indices, Head[#]] & /@ {inds});
@@ -149,7 +151,16 @@ ConjugateTranspose[a_Dot]      := ConjugateTranspose /@ Reverse[a];
 ConjugateTranspose[c_ * x_]     := Conjugate[c] ConjugateTranspose[x] /; scalarQ[c];
 ConjugateTranspose[0]           := 0;
 ConjugateTranspose[d[a_][b_]] := d[a][ConjugateTranspose[b]];
-ConjugateTranspose[col_Col]   := Col @@ (Conjugate /@ List@@col);
+(* Note: there is deliberately NO rule for ConjugateTranspose[CovD[mu][X]].
+   (D_mu X)^dagger is left symbolic until ExplCovD expands the covariant
+   derivative; ConjugateTranspose then distributes over the resulting INS/Dot/Plus
+   and automatically produces the conjugate-representation form (sigma moves to
+   the right of the column, relative signs flip).  This works in both orderings
+   because su2ScalarQ[Col]=False keeps the scalar rule above from collapsing a
+   covariant derivative of a column to a plain Conjugate. *)
+(* Hermitian conjugate of a column: dagger each entry (CT, not bare Conjugate,
+   so fermionic/NC entries are handled correctly), yielding a row in Dot. *)
+ConjugateTranspose[col_Col]   := Col @@ (ConjugateTranspose /@ List@@col);
 ConjugateTranspose[INS[a_]] := INS[ConjugateTranspose[a]];
 ConjugateTranspose[ConjugateTranspose[a_]]:=a;
 Protect[ConjugateTranspose];
@@ -196,6 +207,11 @@ HeadAndArgs[e_] := Join[List@@e,{Head[e]}];
 extractIndices[t_][e_] /; FreeQ[e, t] := {};
 extractIndices[t_][h_[i[x_]]] /; MemberQ[$indices, h] := If[h === t, {i[x]}, {}];
 extractIndices[t_][Power[b_, n_Integer?Positive]] := Join @@ ConstantArray[extractIndices[t][b], n];
+(* The two entries of a Col are parallel components of one multiplet and carry
+   identical index structure; an index shared across the entries denotes ONE
+   slot and must be counted once.  Use a representative (maximal) entry so a
+   constant component does not hide the indices carried by the other. *)
+extractIndices[t_][col_Col] := First @ MaximalBy[extractIndices[t] /@ (List @@ col), Length];
 extractIndices[t_][e_] /; Head[e] =!= Power := If[AtomQ[e], {}, Join @@ (extractIndices[t] /@ HeadAndArgs @ e)];
 
 dummyIndices[t_][e_] := Cases[Tally[extractIndices[t][e]], {x_, 2} :> t[x]];
@@ -551,11 +567,34 @@ SU2T[a_][col_Col] := (1/2) sigma[a] . col;
 (* SU(2) generator vanishes on singlets *)
 SU2T[GI[_]][sym_?su2SingletQ]  := 0;
 SU2T[GI[_]][f_] /; su2SingletQ[Head[f]] := 0;
+(* Any other field is treated as an SU(2) singlet (mirrors the U1Y singlet
+   fallback): the generators annihilate it.  Restricted to fields, and guarded
+   against doublets so a doublet symbol still waiting for ExplGaugeMult (e.g.
+   SU2T[a][Phi]) is left symbolic.  A Col is not a field, so it is untouched here
+   and handled by the doublet rule above. *)
+SU2T[GI[_]][f_?fieldQ] /; FreeQ[f, _?su2DoubletQ] := 0;
 
 (* U(1)_Y generator: return hypercharge of the multiplet.
    Split bare-symbol vs indexed to avoid Hypercharge[sym[idx]] when idx is present. *)
 U1Y[sym_Symbol] /; su2DoubletQ[sym] || su2SingletQ[sym] := Hypercharge[sym]*sym;
 U1Y[f_[inds___]]    /; su2DoubletQ[f]   || su2SingletQ[f]   := Hypercharge[f]*f[inds];
+
+(* Hypercharge of a doublet from its lower (T3 = -1/2) component: Y = 2(Q+1/2).
+   Same formula DeclareGaugeDoublet uses to set Hypercharge[sym]. *)
+lowerCompHypercharge[lower_] := 2 (ElectricCharge[First[fieldSymbolsIn[lower]]] + 1/2);
+
+(* A Col is always an SU(2) doublet, even after ExplGaugeMult has replaced the
+   doublet symbol by its components.  Recompute the hypercharge from the lower
+   component on the spot, so nothing has to be stored and the result is correct
+   for the daggered column too (its lower component is the neutral one, same Y). *)
+U1Y[col_Col] := lowerCompHypercharge[col[[2]]] * col;
+
+(* A bare field handed to U1Y is treated as an SU(2) singlet (T3 = 0, so
+   Y = 2Q), mirroring DeclareGaugeSinglet.  Restricted to fields so U1Y of a
+   sum/product/number stays unevaluated rather than silently returning nonsense;
+   the registered doublet/singlet rules above are more specific and take
+   precedence. *)
+U1Y[f_?fieldQ] := 2 ElectricCharge[f] * f;
 
 (* =================================================================== *)
 (*  Covariant derivative and field strength declarations                *)
