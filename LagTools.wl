@@ -151,15 +151,6 @@ ConjugateTranspose[a_Dot]      := ConjugateTranspose /@ Reverse[a];
 ConjugateTranspose[c_ * x_]     := Conjugate[c] ConjugateTranspose[x] /; scalarQ[c];
 ConjugateTranspose[0]           := 0;
 ConjugateTranspose[d[a_][b_]] := d[a][ConjugateTranspose[b]];
-(* Note: there is deliberately NO rule for ConjugateTranspose[CovD[mu][X]].
-   (D_mu X)^dagger is left symbolic until ExplCovD expands the covariant
-   derivative; ConjugateTranspose then distributes over the resulting INS/Dot/Plus
-   and automatically produces the conjugate-representation form (sigma moves to
-   the right of the column, relative signs flip).  This works in both orderings
-   because su2ScalarQ[Col]=False keeps the scalar rule above from collapsing a
-   covariant derivative of a column to a plain Conjugate. *)
-(* Hermitian conjugate of a column: dagger each entry (CT, not bare Conjugate,
-   so fermionic/NC entries are handled correctly), yielding a row in Dot. *)
 ConjugateTranspose[col_Col]   := Col @@ (ConjugateTranspose /@ List@@col);
 ConjugateTranspose[INS[a_]] := INS[ConjugateTranspose[a]];
 ConjugateTranspose[ConjugateTranspose[a_]]:=a;
@@ -207,23 +198,22 @@ HeadAndArgs[e_] := Join[List@@e,{Head[e]}];
 extractIndices[t_][e_] /; FreeQ[e, t] := {};
 extractIndices[t_][h_[i[x_]]] /; MemberQ[$indices, h] := If[h === t, {i[x]}, {}];
 extractIndices[t_][Power[b_, n_Integer?Positive]] := Join @@ ConstantArray[extractIndices[t][b], n];
-(* The two entries of a Col are parallel components of one multiplet and carry
-   identical index structure; an index shared across the entries denotes ONE
-   slot and must be counted once.  Use a representative (maximal) entry so a
-   constant component does not hide the indices carried by the other. *)
 extractIndices[t_][col_Col] := First @ MaximalBy[extractIndices[t] /@ (List @@ col), Length];
 extractIndices[t_][e_] /; Head[e] =!= Power := If[AtomQ[e], {}, Join @@ (extractIndices[t] /@ HeadAndArgs @ e)];
 
 dummyIndices[t_][e_] := Cases[Tally[extractIndices[t][e]], {x_, 2} :> t[x]];
 
-canonicalizeOneIndexType[e_, indexType_] := Module[{dum, n},
+canonicalizeOneIndexType[e_, indexType_] := Module[{allIdx, dum, open, n, canonIdxLst},
   (* any index appearing twice in expression is a dummy index *)
+  allIdx = extractIndices[indexType][e];
   dum = dummyIndices[indexType][e];
+  open = Complement[indexType /@ allIdx, dum] /. indexType[i[x_]] :> x;
   n = Length[dum];
+  canonIdxLst = FirstFreeIdx[open, #] & /@ (Range @ n);
   If[n === 0, e,
     First @ Sort @ Table[
       e /. Thread[dum -> Table[indexType[i[p[[k]]]], {k, n}]],
-      {p, Permutations @ Range @ n}
+      {p, Permutations @ canonIdxLst}
     ]
   ]
 ];
@@ -253,7 +243,7 @@ GISum = IdxSum[GI];
 FISum = IdxSum[FI];
 
 (* =================================================================== *)
-(*  IndexNamespace (INS)                                                *)
+(*  IndexNamespace (INS)                                               *)
 (* =================================================================== *)
 
 IndexNamespace := INS;
@@ -351,8 +341,8 @@ Protect[Dot];
 (* --- INSRule ------------------------------------------------------- *)
 
 (* helpers *)
-FirstFreeIdx[taken : {__Integer}, n_Integer] :=
-  Complement[Range[1, Length[taken] + n], taken][[n]];
+FirstFreeIdx[taken : {___Integer}, n_Integer] :=
+  If[Length[taken] === 0, n, Complement[Range[1, Length[taken] + n], taken][[n]]];
 FirstFreeIdxRepl[taken_List, e_] := e /. {i[n_Integer] :> i[FirstFreeIdx[taken, n]]};
 
 SetAttributes[INSRule, HoldAll];
@@ -396,6 +386,7 @@ recombineProjectors[e_] := Expand[e] //. {
    Plus[u___, c_. * NC[gg___, PL, hh___],
               c_. * NC[gg___, PR, hh___], v___] :>
       Plus[u, v, c NC[gg, hh]],
+   Plus[u___, c_. * NC[PL], c_. * NC[PR], v___] :> Plus[u, v, c],
    Plus[u___, c_. * PL, c_. * PR, v___] :> Plus[u, v, c]};
    
 (* ---- chiral field renormalisation ---- *)
@@ -469,15 +460,20 @@ fdiff[lg_, e_] := fdiffINS[lg, INS[e]];
 
 (* ---- Feynman rules ---- *)
 (* differentiate wrt each leg in turn, then send the leftover fields to zero *)
-setZero[e_] := e /. x_ /; fieldQ[x] :> 0;
+(*setZero[e_] := e /. x_ /; fieldQ[x] :> 0;*)
+setZero[a_] /; FreeQ[a, _?fieldQ] := a;
+setZero[a_?fieldQ] := 0;
+setZero[ElectricCharge[x_]] := ElectricCharge[x];
+setZero[e_] := Map[setZero, e];
+
 functionalD[L_, legs_] := Module[{e = Expand[L]},
    Do[e = Expand[fdiff[lg, e]], {lg, legs}];
    Expand[setZero[e]]];
 
 (* tree-level vertex:  i * delta^n S / delta phi... , contracted, Dirac- and    *)
 (* index-canonicalised *)
-RemoveINS[e_] := Module[{L}, (e /. {INS -> L}) /. {L[a_] -> a}]
-feynmanRule[l_, legs_] := I recombineProjectors @ canonical @ diracSimplify @ contract @ functionalD[RemoveINS@l, legs];
+RemoveINS[e_] := e //. {HoldPattern[INS[a_]] -> a};
+feynmanRule[l_, legs_] := I recombineProjectors @ RemoveINS @ Expand @ FullSimplify @ canonical @ diracSimplify @ contract @ functionalD[RemoveINS@l, legs];
 
 (* =================================================================== *)
 (*  Gauge multiplet infrastructure                                      *)
@@ -567,11 +563,6 @@ SU2T[a_][col_Col] := (1/2) sigma[a] . col;
 (* SU(2) generator vanishes on singlets *)
 SU2T[GI[_]][sym_?su2SingletQ]  := 0;
 SU2T[GI[_]][f_] /; su2SingletQ[Head[f]] := 0;
-(* Any other field is treated as an SU(2) singlet (mirrors the U1Y singlet
-   fallback): the generators annihilate it.  Restricted to fields, and guarded
-   against doublets so a doublet symbol still waiting for ExplGaugeMult (e.g.
-   SU2T[a][Phi]) is left symbolic.  A Col is not a field, so it is untouched here
-   and handled by the doublet rule above. *)
 SU2T[GI[_]][f_?fieldQ] /; FreeQ[f, _?su2DoubletQ] := 0;
 
 (* U(1)_Y generator: return hypercharge of the multiplet.
@@ -583,17 +574,7 @@ U1Y[f_[inds___]]    /; su2DoubletQ[f]   || su2SingletQ[f]   := Hypercharge[f]*f[
    Same formula DeclareGaugeDoublet uses to set Hypercharge[sym]. *)
 lowerCompHypercharge[lower_] := 2 (ElectricCharge[First[fieldSymbolsIn[lower]]] + 1/2);
 
-(* A Col is always an SU(2) doublet, even after ExplGaugeMult has replaced the
-   doublet symbol by its components.  Recompute the hypercharge from the lower
-   component on the spot, so nothing has to be stored and the result is correct
-   for the daggered column too (its lower component is the neutral one, same Y). *)
 U1Y[col_Col] := lowerCompHypercharge[col[[2]]] * col;
-
-(* A bare field handed to U1Y is treated as an SU(2) singlet (T3 = 0, so
-   Y = 2Q), mirroring DeclareGaugeSinglet.  Restricted to fields so U1Y of a
-   sum/product/number stays unevaluated rather than silently returning nonsense;
-   the registered doublet/singlet rules above are more specific and take
-   precedence. *)
 U1Y[f_?fieldQ] := 2 ElectricCharge[f] * f;
 
 (* =================================================================== *)
@@ -618,11 +599,7 @@ DeclareFieldStr[sym_Symbol, lbl_, rule_RuleDelayed] := (
 );
 
 (* Covariant derivative applied to an INS-wrapped argument: push INS inside,
-   renaming any dummy in a that clashes with the indices carried by h.
-   h = sym[LI[mu]] where covDQ[sym]; the index mu in h is treated as a free
-   index, so dummies in a that equal mu are renamed before pushing inside.
-   Any new dummy GI indices introduced by ExplCovD expansion are then
-   managed by INS in the usual way. *)
+   renaming any dummy in a that clashes with the indices carried by h. *)
 INS /: HoldPattern[h_[mu_][INS[a_]]] /; covDQ[h] :=
   INS[h[mu][resolvedE2[mu, a]]];
 

@@ -73,6 +73,7 @@ DeclareRealParam[xiZ, Subscript["\[Xi]", "Z"]];
 
 (* sw^2 = 1-cw^2 as shorthand without having to do transformations between the two *)
 sw = Sqrt[1 - cw^2];
+$Assumptions = {cw \[Element] Reals, cw > 0, cw < 1};
 
 Unprotect[MakeBoxes];
 MakeBoxes[Sqrt[1 - cw^2],  StandardForm] := SubscriptBox["s", "w"];
@@ -103,7 +104,7 @@ DeclareCovD[CovD, "D",
 DeclareFieldStr[WFieldStr, "W", 
   INSRule[WFieldStr[GI[i[c_]], LI[a_], LI[b_]],
    d[LI[a]][W[GI[i[c]], LI[b]]] - d[LI[b]][W[GI[i[c]], LI[a]]] + 
-     I*g2*eps3[GI[i[c]], GI[i[1]], GI[i[2]]]*
+     g2*eps3[GI[i[c]], GI[i[1]], GI[i[2]]]*
       W[GI[i[1]], LI[a]]*W[GI[i[2]], LI[b]]]];
 
 (* Field strength tensor for B *)
@@ -174,8 +175,8 @@ gaugeFieldRotation = {
 paramSubs = {
   g2  -> ee / sw,
   g1  -> ee / cw,
-  v   -> 2 sw MW / ee,
-  lam -> ee^2 MH^2 / (8 sw^2 MW^2),
+  v   -> 2 sw MW / ee, (* v = 2 MW / g2 *)
+  lam -> ee^2 MH^2 / (2 sw^2 MW^2), (* lam = 2 MH^2 /v^2 *)
   mu2 -> MH^2 / 2
 };
 
@@ -203,6 +204,10 @@ ExplMassMat[e_] := e //. {
   Mdiagu[FI[a_], FI[b_]] :> kd3[FI[a], FI[b]]* mu[FI[a]],
   Mdiagd[FI[a_], FI[b_]] :> kd3[FI[a], FI[b]]* md[FI[a]]
 };
+
+SetAttributes[Mdiagl,Orderless];
+SetAttributes[Mdiagu,Orderless];
+SetAttributes[Mdiagd,Orderless];
 
 basisChangeFields = {
    INSRule[dq[FI[i[c_]]], dq[FI[i[1]]]*Conjugate[Ud[FI[i[1]], FI[i[c]]]]],
@@ -326,10 +331,10 @@ CZ[mu_]  := d[LI[mu]][Zb[LI[mu]]] - MZ xiZ chi;
 CWp[mu_] := d[LI[mu]][Wp[LI[mu]]] - I MW xiW phi;
 CWm[mu_] := d[LI[mu]][Wm[LI[mu]]] + I MW xiW phim;
 
-Lfix = Expand[
-  -(1/2) CA[i[1]]  CA[i[1]]
-  -(1/2) CZ[i[1]]  CZ[i[1]]
-  -      CWp[i[1]] CWm[i[1]]
+Lfix = Expand[ (* could also use INS here ... *)
+  -(1/2) CA[i[1]]  CA[i[2]]
+  -(1/2) CZ[i[1]]  CZ[i[2]]
+  -      CWp[i[1]] CWm[i[2]]
 ];
 
 (* ---- Variations of gauge-fixing conditions under gauge transformations ---- *)
