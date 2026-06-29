@@ -48,13 +48,20 @@ DeclareComplexParam[p_Symbol, lbl_] := (Format[p] = lbl; p);
 DeclareRealParam[p_Symbol]       := (DeclareComplexParam[p]; SetConjugate[p, p]; p);
 DeclareRealParam[p_Symbol, lbl_] := (DeclareRealParam[p]; Format[p] = lbl; p);
 
+(* Local (space-time dependent) gauge parameters: real parameters that are
+   NOT space-time independent, so they survive derivatives d[mu][.] (needed
+   e.g. to derive the Faddeev-Popov ghost Lagrangian). *)
+DeclareLocalGaugeParam[p_Symbol]       := (DeclareRealParam[p]; gaugeParamQ[p] = True; p);
+DeclareLocalGaugeParam[p_Symbol, lbl_] := (DeclareLocalGaugeParam[p]; Format[p] = lbl; p);
+
 (*----defaults----*)
-bosonQ[_]      := False;
-fermionQ[_]    := False;
-grassmannQ[_]  := False;
+bosonQ[_]       := False;
+fermionQ[_]     := False;
+grassmannQ[_]   := False;
+gaugeParamQ[_]  := False;
 
 (* lift all predicates through indexed fields and bar *)
-With[{preds={bosonQ, fermionQ, grassmannQ}},
+With[{preds={bosonQ, fermionQ, grassmannQ, gaugeParamQ}},
   Scan[(#[h_[___]] /; h=!=bar := #[h])&, preds];
   Scan[(#[bar[f_]] := #[f])&, preds];
 ];
@@ -69,7 +76,7 @@ stripMeta[x_] := x /. $metadataP :> 1;
 
 (*---- composite predicates with deep-scan ----*)
 commutingQ[x_]   := FreeQ[stripMeta[x], _?oddQ | _?diracMatQ];
-STindepQ[x_]     := FreeQ[stripMeta[x], _?fieldQ];
+STindepQ[x_]     := FreeQ[stripMeta[x], _?fieldQ | _?gaugeParamQ];
 diracScalarQ[x_] := FreeQ[stripMeta[x], _?fermionQ | _?diracMatQ];
 su2MatQ[_]        := False;
 su2MatQ[sigma[_]] := True;

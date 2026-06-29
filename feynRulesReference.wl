@@ -55,9 +55,20 @@ dgmf[f_] := (I3f[f]/(sw cw)) (dZe + ((sw^2 - cw^2)/cw^2) dsw) + dgpf[f];
 
 (* Further independent counterterms used below (symbolic):                *)
 (*   dtFJ, dtPR                : tadpole CTs (FJTS / PRTS schemes)         *)
-(*   dml[FI[a]],dmu[FI[a]],dmd[FI[a]] : fermion mass CTs  delta m_{f,a}    *)
 (*   dV[FI[a],FI[b]]           : CKM-matrix CT  delta V_{ab}               *)
 (*   dZeL,dZeR,dZnuL,dZuL,dZuR,dZdL,dZdR  : field-renorm matrices [FI,FI]  *)
+
+(* Fermion masses appear ONLY through the diagonal mass matrices           *)
+(* Mdiagl,Mdiagu,Mdiagd (defined in EWSMLagrangian.wl), so that no bare    *)
+(* m_{f,i} ever carries a repeated flavour index (which the summation      *)
+(* convention would mis-contract: delta_ij m_i -> Mdiagl_ij, and a mass    *)
+(* sandwiched in a product becomes a matrix factor, e.g. m_i (dZ)_ij ->    *)
+(* Mdiag_ik (dZ)_kj summed over k).  Their counterterms                    *)
+(* dMdiagl/dMdiagu/dMdiagd ( = delta_ij delta m_{f,i} ) are declared here. *)
+SetAttributes[dMdiagl, Orderless];
+SetAttributes[dMdiagu, Orderless];
+SetAttributes[dMdiagd, Orderless];
+Scan[(# /: Conjugate[#] := #) &, {dMdiagl, dMdiagu, dMdiagd}];
 
 ClearAll[feynruleMap];
 
@@ -293,43 +304,43 @@ feynruleMap[{{bar[dq], FI[i[2]], p1}, {uq, FI[i[3]], p2}, {Wm, LI[i[1]], p3}}] =
 feynruleMap[{{bar[el], FI[i[2]], p1}, {el, FI[i[3]], p2}, {HH, None, p3}}] =
   I ee (-(1/(2 sw MW))) (
     NC[PL] (
-       kd3[FI[i[2]], FI[i[3]]] ( ml[FI[i[2]]] (1 + dZe - dsw - 1/2 dMW2/MW^2 + 1/2 dZH)
-            + dml[FI[i[2]]] )
-       + 1/2 ( ml[FI[i[2]]] dZeL[FI[i[2]], FI[i[3]]]
-             + Conjugate[dZeR[FI[i[3]], FI[i[2]]]] ml[FI[i[3]]] ) )
+       Mdiagl[FI[i[2]], FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2 + 1/2 dZH)
+       + dMdiagl[FI[i[2]], FI[i[3]]]
+       + 1/2 ( Mdiagl[FI[i[2]], FI[i[4]]] dZeL[FI[i[4]], FI[i[3]]]
+             + Conjugate[dZeR[FI[i[4]], FI[i[2]]]] Mdiagl[FI[i[4]], FI[i[3]]] ) )
   + NC[PR] (
-       kd3[FI[i[2]], FI[i[3]]] ( ml[FI[i[2]]] (1 + dZe - dsw - 1/2 dMW2/MW^2 + 1/2 dZH)
-            + dml[FI[i[2]]] )
-       + 1/2 ( ml[FI[i[2]]] dZeR[FI[i[2]], FI[i[3]]]
-             + Conjugate[dZeL[FI[i[3]], FI[i[2]]]] ml[FI[i[3]]] ) ) );
+       Mdiagl[FI[i[2]], FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2 + 1/2 dZH)
+       + dMdiagl[FI[i[2]], FI[i[3]]]
+       + 1/2 ( Mdiagl[FI[i[2]], FI[i[4]]] dZeR[FI[i[4]], FI[i[3]]]
+             + Conjugate[dZeL[FI[i[4]], FI[i[2]]]] Mdiagl[FI[i[4]], FI[i[3]]] ) ) );
 
 (* H ubar u *)
 feynruleMap[{{bar[uq], FI[i[2]], p1}, {uq, FI[i[3]], p2}, {HH, None, p3}}] =
   I ee (-(1/(2 sw MW))) (
     NC[PL] (
-       kd3[FI[i[2]], FI[i[3]]] ( mu[FI[i[2]]] (1 + dZe - dsw - 1/2 dMW2/MW^2 + 1/2 dZH)
-            + dmu[FI[i[2]]] )
-       + 1/2 ( mu[FI[i[2]]] dZuL[FI[i[2]], FI[i[3]]]
-             + Conjugate[dZuR[FI[i[3]], FI[i[2]]]] mu[FI[i[3]]] ) )
+       Mdiagu[FI[i[2]], FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2 + 1/2 dZH)
+       + dMdiagu[FI[i[2]], FI[i[3]]]
+       + 1/2 ( Mdiagu[FI[i[2]], FI[i[4]]] dZuL[FI[i[4]], FI[i[3]]]
+             + Conjugate[dZuR[FI[i[4]], FI[i[2]]]] Mdiagu[FI[i[4]], FI[i[3]]] ) )
   + NC[PR] (
-       kd3[FI[i[2]], FI[i[3]]] ( mu[FI[i[2]]] (1 + dZe - dsw - 1/2 dMW2/MW^2 + 1/2 dZH)
-            + dmu[FI[i[2]]] )
-       + 1/2 ( mu[FI[i[2]]] dZuR[FI[i[2]], FI[i[3]]]
-             + Conjugate[dZuL[FI[i[3]], FI[i[2]]]] mu[FI[i[3]]] ) ) );
+       Mdiagu[FI[i[2]], FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2 + 1/2 dZH)
+       + dMdiagu[FI[i[2]], FI[i[3]]]
+       + 1/2 ( Mdiagu[FI[i[2]], FI[i[4]]] dZuR[FI[i[4]], FI[i[3]]]
+             + Conjugate[dZuL[FI[i[4]], FI[i[2]]]] Mdiagu[FI[i[4]], FI[i[3]]] ) ) );
 
 (* H dbar d *)
 feynruleMap[{{bar[dq], FI[i[2]], p1}, {dq, FI[i[3]], p2}, {HH, None, p3}}] =
   I ee (-(1/(2 sw MW))) (
     NC[PL] (
-       kd3[FI[i[2]], FI[i[3]]] ( md[FI[i[2]]] (1 + dZe - dsw - 1/2 dMW2/MW^2 + 1/2 dZH)
-            + dmd[FI[i[2]]] )
-       + 1/2 ( md[FI[i[2]]] dZdL[FI[i[2]], FI[i[3]]]
-             + Conjugate[dZdR[FI[i[3]], FI[i[2]]]] md[FI[i[3]]] ) )
+       Mdiagd[FI[i[2]], FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2 + 1/2 dZH)
+       + dMdiagd[FI[i[2]], FI[i[3]]]
+       + 1/2 ( Mdiagd[FI[i[2]], FI[i[4]]] dZdL[FI[i[4]], FI[i[3]]]
+             + Conjugate[dZdR[FI[i[4]], FI[i[2]]]] Mdiagd[FI[i[4]], FI[i[3]]] ) )
   + NC[PR] (
-       kd3[FI[i[2]], FI[i[3]]] ( md[FI[i[2]]] (1 + dZe - dsw - 1/2 dMW2/MW^2 + 1/2 dZH)
-            + dmd[FI[i[2]]] )
-       + 1/2 ( md[FI[i[2]]] dZdR[FI[i[2]], FI[i[3]]]
-             + Conjugate[dZdL[FI[i[3]], FI[i[2]]]] md[FI[i[3]]] ) ) );
+       Mdiagd[FI[i[2]], FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2 + 1/2 dZH)
+       + dMdiagd[FI[i[2]], FI[i[3]]]
+       + 1/2 ( Mdiagd[FI[i[2]], FI[i[4]]] dZdR[FI[i[4]], FI[i[3]]]
+             + Conjugate[dZdL[FI[i[4]], FI[i[2]]]] Mdiagd[FI[i[4]], FI[i[3]]] ) ) );
 
 (* --- chi : CR = +i/(2s) 2 I3_f /MW [ delta_ij m_i(...) + 1/2(m_i dZR+dZL^d m_j) ] *)
 (*           CL = -i/(2s) 2 I3_f /MW [ delta_ij m_i(...) + 1/2(m_i dZL+dZR^d m_j) ] *)
@@ -339,90 +350,96 @@ feynruleMap[{{bar[dq], FI[i[2]], p1}, {dq, FI[i[3]], p2}, {HH, None, p3}}] =
 feynruleMap[{{bar[el], FI[i[2]], p1}, {el, FI[i[3]], p2}, {chi, None, p3}}] =
   I ee (
     NC[PL] ( -I/(2 sw) (2 I3f[el]) (1/MW) (
-         kd3[FI[i[2]], FI[i[3]]] ( ml[FI[i[2]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
-              + dml[FI[i[2]]] )
-       + 1/2 ( ml[FI[i[2]]] dZeL[FI[i[2]], FI[i[3]]]
-             + Conjugate[dZeR[FI[i[3]], FI[i[2]]]] ml[FI[i[3]]] ) ) )
+         Mdiagl[FI[i[2]], FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
+       + dMdiagl[FI[i[2]], FI[i[3]]]
+       + 1/2 ( Mdiagl[FI[i[2]], FI[i[4]]] dZeL[FI[i[4]], FI[i[3]]]
+             + Conjugate[dZeR[FI[i[4]], FI[i[2]]]] Mdiagl[FI[i[4]], FI[i[3]]] ) ) )
   + NC[PR] ( +I/(2 sw) (2 I3f[el]) (1/MW) (
-         kd3[FI[i[2]], FI[i[3]]] ( ml[FI[i[2]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
-              + dml[FI[i[2]]] )
-       + 1/2 ( ml[FI[i[2]]] dZeR[FI[i[2]], FI[i[3]]]
-             + Conjugate[dZeL[FI[i[3]], FI[i[2]]]] ml[FI[i[3]]] ) ) ) );
+         Mdiagl[FI[i[2]], FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
+       + dMdiagl[FI[i[2]], FI[i[3]]]
+       + 1/2 ( Mdiagl[FI[i[2]], FI[i[4]]] dZeR[FI[i[4]], FI[i[3]]]
+             + Conjugate[dZeL[FI[i[4]], FI[i[2]]]] Mdiagl[FI[i[4]], FI[i[3]]] ) ) ) );
 
 (* chi ubar u *)
 feynruleMap[{{bar[uq], FI[i[2]], p1}, {uq, FI[i[3]], p2}, {chi, None, p3}}] =
   I ee (
     NC[PL] ( -I/(2 sw) (2 I3f[uq]) (1/MW) (
-         kd3[FI[i[2]], FI[i[3]]] ( mu[FI[i[2]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
-              + dmu[FI[i[2]]] )
-       + 1/2 ( mu[FI[i[2]]] dZuL[FI[i[2]], FI[i[3]]]
-             + Conjugate[dZuR[FI[i[3]], FI[i[2]]]] mu[FI[i[3]]] ) ) )
+         Mdiagu[FI[i[2]], FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
+       + dMdiagu[FI[i[2]], FI[i[3]]]
+       + 1/2 ( Mdiagu[FI[i[2]], FI[i[4]]] dZuL[FI[i[4]], FI[i[3]]]
+             + Conjugate[dZuR[FI[i[4]], FI[i[2]]]] Mdiagu[FI[i[4]], FI[i[3]]] ) ) )
   + NC[PR] ( +I/(2 sw) (2 I3f[uq]) (1/MW) (
-         kd3[FI[i[2]], FI[i[3]]] ( mu[FI[i[2]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
-              + dmu[FI[i[2]]] )
-       + 1/2 ( mu[FI[i[2]]] dZuR[FI[i[2]], FI[i[3]]]
-             + Conjugate[dZuL[FI[i[3]], FI[i[2]]]] mu[FI[i[3]]] ) ) ) );
+         Mdiagu[FI[i[2]], FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
+       + dMdiagu[FI[i[2]], FI[i[3]]]
+       + 1/2 ( Mdiagu[FI[i[2]], FI[i[4]]] dZuR[FI[i[4]], FI[i[3]]]
+             + Conjugate[dZuL[FI[i[4]], FI[i[2]]]] Mdiagu[FI[i[4]], FI[i[3]]] ) ) ) );
 
 (* chi dbar d *)
 feynruleMap[{{bar[dq], FI[i[2]], p1}, {dq, FI[i[3]], p2}, {chi, None, p3}}] =
   I ee (
     NC[PL] ( -I/(2 sw) (2 I3f[dq]) (1/MW) (
-         kd3[FI[i[2]], FI[i[3]]] ( md[FI[i[2]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
-              + dmd[FI[i[2]]] )
-       + 1/2 ( md[FI[i[2]]] dZdL[FI[i[2]], FI[i[3]]]
-             + Conjugate[dZdR[FI[i[3]], FI[i[2]]]] md[FI[i[3]]] ) ) )
+         Mdiagd[FI[i[2]], FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
+       + dMdiagd[FI[i[2]], FI[i[3]]]
+       + 1/2 ( Mdiagd[FI[i[2]], FI[i[4]]] dZdL[FI[i[4]], FI[i[3]]]
+             + Conjugate[dZdR[FI[i[4]], FI[i[2]]]] Mdiagd[FI[i[4]], FI[i[3]]] ) ) )
   + NC[PR] ( +I/(2 sw) (2 I3f[dq]) (1/MW) (
-         kd3[FI[i[2]], FI[i[3]]] ( md[FI[i[2]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
-              + dmd[FI[i[2]]] )
-       + 1/2 ( md[FI[i[2]]] dZdR[FI[i[2]], FI[i[3]]]
-             + Conjugate[dZdL[FI[i[3]], FI[i[2]]]] md[FI[i[3]]] ) ) ) );
+         Mdiagd[FI[i[2]], FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
+       + dMdiagd[FI[i[2]], FI[i[3]]]
+       + 1/2 ( Mdiagd[FI[i[2]], FI[i[4]]] dZdR[FI[i[4]], FI[i[3]]]
+             + Conjugate[dZdL[FI[i[4]], FI[i[2]]]] Mdiagd[FI[i[4]], FI[i[3]]] ) ) ) );
 
 
 (* ===================================================================== *)
 (*  CHARGED GOLDSTONE - FERMION - FERMION   phi Fbar F                    *)
 (* ===================================================================== *)
 
-(* phi^+ ubar_i d_j   (i=up=FI[i[2]], j=down=FI[i[3]]) *)
+(* phi^+ ubar_i d_j   (i=up=FI[i[2]], j=down=FI[i[3]]; sums over i[4],i[5]) *)
 feynruleMap[{{bar[uq], FI[i[2]], p1}, {dq, FI[i[3]], p2}, {phi, None, p3}}] =
   I ee (
     NC[PL] ( 1/(Sqrt[2] sw MW) (
-         (mu[FI[i[2]]] (1 + dZe - dsw - 1/2 dMW2/MW^2) + dmu[FI[i[2]]]) V[FI[i[2]], FI[i[3]]]
-       + mu[FI[i[2]]] dV[FI[i[2]], FI[i[3]]]
-       + 1/2 ( Conjugate[dZuR[FI[i[4]], FI[i[2]]]] mu[FI[i[4]]] V[FI[i[4]], FI[i[3]]]
-             + mu[FI[i[2]]] V[FI[i[2]], FI[i[4]]] dZdL[FI[i[4]], FI[i[3]]] ) ) )
+         Mdiagu[FI[i[2]], FI[i[4]]] V[FI[i[4]], FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
+       + dMdiagu[FI[i[2]], FI[i[4]]] V[FI[i[4]], FI[i[3]]]
+       + Mdiagu[FI[i[2]], FI[i[4]]] dV[FI[i[4]], FI[i[3]]]
+       + 1/2 ( Conjugate[dZuR[FI[i[4]], FI[i[2]]]] Mdiagu[FI[i[4]], FI[i[5]]] V[FI[i[5]], FI[i[3]]]
+             + Mdiagu[FI[i[2]], FI[i[4]]] V[FI[i[4]], FI[i[5]]] dZdL[FI[i[5]], FI[i[3]]] ) ) )
   + NC[PR] ( -(1/(Sqrt[2] sw MW)) (
-         V[FI[i[2]], FI[i[3]]] (md[FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2) + dmd[FI[i[3]]])
-       + dV[FI[i[2]], FI[i[3]]] md[FI[i[3]]]
-       + 1/2 ( Conjugate[dZuL[FI[i[4]], FI[i[2]]]] V[FI[i[4]], FI[i[3]]] md[FI[i[3]]]
-             + V[FI[i[2]], FI[i[4]]] md[FI[i[4]]] dZdR[FI[i[4]], FI[i[3]]] ) ) ) );
+         V[FI[i[2]], FI[i[4]]] Mdiagd[FI[i[4]], FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
+       + V[FI[i[2]], FI[i[4]]] dMdiagd[FI[i[4]], FI[i[3]]]
+       + dV[FI[i[2]], FI[i[4]]] Mdiagd[FI[i[4]], FI[i[3]]]
+       + 1/2 ( Conjugate[dZuL[FI[i[4]], FI[i[2]]]] V[FI[i[4]], FI[i[5]]] Mdiagd[FI[i[5]], FI[i[3]]]
+             + V[FI[i[2]], FI[i[4]]] Mdiagd[FI[i[4]], FI[i[5]]] dZdR[FI[i[5]], FI[i[3]]] ) ) ) );
 
-(* phi^- dbar_j u_i   (j=down=FI[i[2]], i=up=FI[i[3]]) *)
+(* phi^- dbar_j u_i   (j=down=FI[i[2]], i=up=FI[i[3]]; sums over i[4],i[5]) *)
 feynruleMap[{{bar[dq], FI[i[2]], p1}, {uq, FI[i[3]], p2}, {phim, None, p3}}] =
   I ee (
     NC[PL] ( -(1/(Sqrt[2] sw MW)) (
-         (md[FI[i[2]]] (1 + dZe - dsw - 1/2 dMW2/MW^2) + dmd[FI[i[2]]]) Conjugate[V[FI[i[3]], FI[i[2]]]]
-       + md[FI[i[2]]] Conjugate[dV[FI[i[3]], FI[i[2]]]]
-       + 1/2 ( Conjugate[dZdR[FI[i[4]], FI[i[2]]]] md[FI[i[4]]] Conjugate[V[FI[i[3]], FI[i[4]]]]
-             + md[FI[i[2]]] Conjugate[V[FI[i[4]], FI[i[2]]]] dZuL[FI[i[4]], FI[i[3]]] ) ) )
+         Mdiagd[FI[i[2]], FI[i[4]]] Conjugate[V[FI[i[3]], FI[i[4]]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
+       + dMdiagd[FI[i[2]], FI[i[4]]] Conjugate[V[FI[i[3]], FI[i[4]]]]
+       + Mdiagd[FI[i[2]], FI[i[4]]] Conjugate[dV[FI[i[3]], FI[i[4]]]]
+       + 1/2 ( Conjugate[dZdR[FI[i[4]], FI[i[2]]]] Mdiagd[FI[i[4]], FI[i[5]]] Conjugate[V[FI[i[3]], FI[i[5]]]]
+             + Mdiagd[FI[i[2]], FI[i[5]]] Conjugate[V[FI[i[4]], FI[i[5]]]] dZuL[FI[i[4]], FI[i[3]]] ) ) )
   + NC[PR] ( 1/(Sqrt[2] sw MW) (
-         Conjugate[V[FI[i[3]], FI[i[2]]]] (mu[FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2) + dmu[FI[i[3]]])
-       + Conjugate[dV[FI[i[3]], FI[i[2]]]] mu[FI[i[3]]]
-       + 1/2 ( Conjugate[dZdL[FI[i[4]], FI[i[2]]]] Conjugate[V[FI[i[3]], FI[i[4]]]] mu[FI[i[3]]]
-             + Conjugate[V[FI[i[4]], FI[i[2]]]] mu[FI[i[4]]] dZuR[FI[i[4]], FI[i[3]]] ) ) ) );
+         Conjugate[V[FI[i[4]], FI[i[2]]]] Mdiagu[FI[i[4]], FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
+       + Conjugate[V[FI[i[4]], FI[i[2]]]] dMdiagu[FI[i[4]], FI[i[3]]]
+       + Conjugate[dV[FI[i[4]], FI[i[2]]]] Mdiagu[FI[i[4]], FI[i[3]]]
+       + 1/2 ( Conjugate[dZdL[FI[i[4]], FI[i[2]]]] Conjugate[V[FI[i[5]], FI[i[4]]]] Mdiagu[FI[i[5]], FI[i[3]]]
+             + Conjugate[V[FI[i[4]], FI[i[2]]]] Mdiagu[FI[i[4]], FI[i[5]]] dZuR[FI[i[5]], FI[i[3]]] ) ) ) );
 
 (* phi^+ nubar_i l_j   (lepton, V -> delta, neutrino massless => CL = 0) *)
 feynruleMap[{{bar[nu], FI[i[2]], p1}, {el, FI[i[3]], p2}, {phi, None, p3}}] =
   I ee NC[PR] ( -(1/(Sqrt[2] sw MW)) (
-       kd3[FI[i[2]], FI[i[3]]] (ml[FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2) + dml[FI[i[3]]])
-     + 1/2 ( Conjugate[dZnuL[FI[i[3]], FI[i[2]]]] ml[FI[i[3]]]
-           + ml[FI[i[2]]] dZeR[FI[i[2]], FI[i[3]]] ) ) );
+       Mdiagl[FI[i[2]], FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
+     + dMdiagl[FI[i[2]], FI[i[3]]]
+     + 1/2 ( Conjugate[dZnuL[FI[i[4]], FI[i[2]]]] Mdiagl[FI[i[4]], FI[i[3]]]
+           + Mdiagl[FI[i[2]], FI[i[4]]] dZeR[FI[i[4]], FI[i[3]]] ) ) );
 
 (* phi^- lbar_j nu_i   (CR = 0) *)
 feynruleMap[{{bar[el], FI[i[2]], p1}, {nu, FI[i[3]], p2}, {phim, None, p3}}] =
   I ee NC[PL] ( -(1/(Sqrt[2] sw MW)) (
-       kd3[FI[i[2]], FI[i[3]]] (ml[FI[i[2]]] (1 + dZe - dsw - 1/2 dMW2/MW^2) + dml[FI[i[2]]])
-     + 1/2 ( Conjugate[dZeR[FI[i[3]], FI[i[2]]]] ml[FI[i[3]]]
-           + ml[FI[i[2]]] dZnuL[FI[i[2]], FI[i[3]]] ) ) );
+       Mdiagl[FI[i[2]], FI[i[3]]] (1 + dZe - dsw - 1/2 dMW2/MW^2)
+     + dMdiagl[FI[i[2]], FI[i[3]]]
+     + 1/2 ( Conjugate[dZeR[FI[i[4]], FI[i[2]]]] Mdiagl[FI[i[4]], FI[i[3]]]
+           + Mdiagl[FI[i[2]], FI[i[4]]] dZnuL[FI[i[4]], FI[i[3]]] ) ) );
 
 
 (* ===================================================================== *)

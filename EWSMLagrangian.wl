@@ -264,7 +264,12 @@ toPhysical[e_] := e // FermionBasisChange // GaugeBasisChange;
 (* GAUGE TRANSFORMATIONS                                                  *)
 (* ====================================================================== *)
 
-(*DeclareGaugeParam /@ {thA, thZ, thp, thm};*)
+(* space-time-dependent gauge parameters (STindepQ = False, so they survive
+   derivatives in the gauge-fixing / FP-ghost derivation below) *)
+DeclareLocalGaugeParam[thA, Superscript["\[Theta]", "A"]];
+DeclareLocalGaugeParam[thZ, Superscript["\[Theta]", "Z"]];
+DeclareLocalGaugeParam[thp, Superscript["\[Theta]", "+"]];
+DeclareLocalGaugeParam[thm, Superscript["\[Theta]", "-"]];
 
 (* Gauge transformation rules: F -> F + delta F (linear in gauge parameters) *)
 gaugeTrafoRules = {
