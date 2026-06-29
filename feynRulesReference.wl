@@ -663,3 +663,94 @@ feynruleMap[{{ubp, None, p1}, {up, None, p2}, {phi, None, p3}}] = 0;
 feynruleMap[{{ubp, None, p1}, {up, None, p2}, {phim, None, p3}}] = 0;
 feynruleMap[{{ubm, None, p1}, {um, None, p2}, {phi, None, p3}}] = 0;
 feynruleMap[{{ubm, None, p1}, {um, None, p2}, {phim, None, p3}}] = 0;
+
+
+(* ===================================================================== *)
+(*  PROPAGATORS                                                          *)
+(*                                                                       *)
+(*  General 't Hooft (R_xi) gauge, all propagators diagonal.             *)
+(*  Stored in `propagatorMap`, keyed in the same leg format as the       *)
+(*  vertices: {{F1,idx1,p1},{F2,idx2,p2}}, distinct momentum per leg and  *)
+(*  `None` where a field carries no index.  The line momentum is the     *)
+(*  leg-1 incoming momentum p1 (p1 = -p2 by momentum conservation);       *)
+(*  p1Sq = p1^2 (scalar invariant), eps = +0^+ (Feynman i*epsilon).       *)
+(*  Masses:  M_A = 0,  M_chi = Sqrt[xiZ] MZ,  M_phi = Sqrt[xiW] MW,      *)
+(*           M_{u^A} = 0, M_{u^Z} = Sqrt[xiZ] MZ, M_{u^pm} = Sqrt[xiW] MW.*)
+(*  xiA is the photon gauge parameter (introduced here for completeness). *)
+(* ===================================================================== *)
+
+DeclareRealParam[xiA, Subscript["\[Xi]", "A"]];
+
+ClearAll[propagatorMap];
+
+(* p1-slash from the line momentum p1 (contracted dummy Lorentz i[5]).    *)
+(* p1Sq is the SCALAR invariant p1^2; it must stay free of Lorentz        *)
+(* indices, otherwise extractIndices cannot descend through the negative  *)
+(* power of the propagator denominator (LagTools.wl:207 only handles      *)
+(* positive integer powers).                                             *)
+p1slash := NC[ga[LI[i[5]]]] p1[LI[i[5]]];
+DeclareRealParam[p1Sq, Superscript["p", "2"]];
+
+(* ---- gauge bosons :  V V  ------------------------------------------- *)
+(*   -i g_mn /(k^2 - M^2 + i eps)                                        *)
+(*   + i (1 - xi) k_m k_n / [ (k^2 - M^2 + i eps)(k^2 - xi M^2 + i eps) ] *)
+
+(* photon  (M_A = 0) *)
+propagatorMap[{{AA, LI[i[1]], p1}, {AA, LI[i[2]], p2}}] = (
+    -I g[LI[i[1]], LI[i[2]]]/(p1Sq + I eps)
+    + I (1 - xiA) p1[LI[i[1]]] p1[LI[i[2]]]/(p1Sq + I eps)^2 );
+
+(* Z boson *)
+propagatorMap[{{Zb, LI[i[1]], p1}, {Zb, LI[i[2]], p2}}] = (
+    -I g[LI[i[1]], LI[i[2]]]/(p1Sq - MZ^2 + I eps)
+    + I (1 - xiZ) p1[LI[i[1]]] p1[LI[i[2]]]/((p1Sq - MZ^2 + I eps) (p1Sq - xiZ MZ^2 + I eps)) );
+
+(* W boson *)
+propagatorMap[{{Wp, LI[i[1]], p1}, {Wm, LI[i[2]], p2}}] = (
+    -I g[LI[i[1]], LI[i[2]]]/(p1Sq - MW^2 + I eps)
+    + I (1 - xiW) p1[LI[i[1]]] p1[LI[i[2]]]/((p1Sq - MW^2 + I eps) (p1Sq - xiW MW^2 + I eps)) );
+
+(* ---- scalars :  S S  --  i /(k^2 - M_S^2 + i eps) ------------------- *)
+propagatorMap[{{HH, None, p1}, {HH, None, p2}}]    = I/(p1Sq - MH^2 + I eps);
+propagatorMap[{{chi, None, p1}, {chi, None, p2}}]  = I/(p1Sq - xiZ MZ^2 + I eps);
+propagatorMap[{{phi, None, p1}, {phim, None, p2}}] = I/(p1Sq - xiW MW^2 + I eps);
+
+(* ---- Faddeev-Popov ghosts :  Ubar U  --  i /(k^2 - M_U^2 + i eps) --- *)
+propagatorMap[{{uba, None, p1}, {ua, None, p2}}] = I/(p1Sq + I eps);          (* M_{u^A} = 0 *)
+propagatorMap[{{ubz, None, p1}, {uz, None, p2}}] = I/(p1Sq - xiZ MZ^2 + I eps);
+propagatorMap[{{ubp, None, p1}, {up, None, p2}}] = I/(p1Sq - xiW MW^2 + I eps);
+propagatorMap[{{ubm, None, p1}, {um, None, p2}}] = I/(p1Sq - xiW MW^2 + I eps);
+
+(* ---- fermions :  Fbar F  ------------------------------------------- *)
+(*   i delta_ij (k-slash + m_{f,i}) / (k^2 - m_{f,i}^2 + i eps),         *)
+(*   diagonal in flavour; numerator mass term is the diagonal matrix     *)
+(*   Mdiag_ij, the scalar denominator uses the line's flavour mass.      *)
+(*                                                                       *)
+(*   CAUTION -- FI canonicalization is INVALID for these entries.        *)
+(*   The denominator carries a flavour-indexed mass ml/mu/md[FI[i[2]]].  *)
+(*   The leg indices i[2],i[3] are OPEN (external), but the open index   *)
+(*   i[2] also appears once in the denominator mass, so the "appears     *)
+(*   twice => dummy" heuristic (dummyIndices, LagTools.wl) would          *)
+(*   misclassify i[2] as a contracted dummy and relabel it.  An indexed  *)
+(*   mass in a denominator is a scalar invariant that can be neither     *)
+(*   contracted nor FI-canonicalized.  When comparing these entries,     *)
+(*   restrict canonicalization to the safe index types, e.g.             *)
+(*       canonical[expr, {LI, GI}]                                       *)
+(*   which still canonicalizes the LI dummy i[5] in p1slash (numerator,  *)
+(*   safe) while skipping the FI fold.  There are no FI dummies to lose: *)
+(*   propagator leg indices are always open.                            *)
+propagatorMap[{{bar[el], FI[i[2]], p1}, {el, FI[i[3]], p2}}] =
+  I (kd3[FI[i[2]], FI[i[3]]] p1slash + Mdiagl[FI[i[2]], FI[i[3]]])/
+    (p1Sq - ml[FI[i[2]]]^2 + I eps);
+
+propagatorMap[{{bar[uq], FI[i[2]], p1}, {uq, FI[i[3]], p2}}] =
+  I (kd3[FI[i[2]], FI[i[3]]] p1slash + Mdiagu[FI[i[2]], FI[i[3]]])/
+    (p1Sq - mu[FI[i[2]]]^2 + I eps);
+
+propagatorMap[{{bar[dq], FI[i[2]], p1}, {dq, FI[i[3]], p2}}] =
+  I (kd3[FI[i[2]], FI[i[3]]] p1slash + Mdiagd[FI[i[2]], FI[i[3]]])/
+    (p1Sq - md[FI[i[2]]]^2 + I eps);
+
+(* neutrino is massless *)
+propagatorMap[{{bar[nu], FI[i[2]], p1}, {nu, FI[i[3]], p2}}] =
+  I kd3[FI[i[2]], FI[i[3]]] p1slash/(p1Sq + I eps);

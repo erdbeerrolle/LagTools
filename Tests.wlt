@@ -243,28 +243,28 @@ VerificationTest[
 VerificationTest[
    feynmanRule[(gw/Sqrt[2]) (bar[nu] ** ga[LI[i[1]]] ** PL ** el) Wp[LI[i[1]]],
       {{Wp, LI[i[2]], k1}, {bar[nu], None, k2}, {el, None, k3}}],
-   I INS[(gw/Sqrt[2]) (ga[LI[i[2]]] ** PL)],
+   I (gw/Sqrt[2]) (ga[LI[i[2]]] ** PL),
    TestID -> "fr-W-vertex"];
 
 (* charged-current W vertex: INS-wrapped input gives INS-wrapped output *)
 VerificationTest[
    feynmanRule[INS[(gw/Sqrt[2]) (bar[nu] ** ga[LI[i[1]]] ** PL ** el) Wp[LI[i[1]]]],
       {{Wp, LI[i[2]], k1}, {bar[nu], None, k2}, {el, None, k3}}],
-   I INS[(gw/Sqrt[2]) (ga[LI[i[2]]] ** PL)],
+   I (gw/Sqrt[2]) (ga[LI[i[2]]] ** PL),
    TestID -> "fr-W-vertex-INS"];
 
 (* pure vector coupling: no projector survives *)
 VerificationTest[
    feynmanRule[ee (bar[el] ** ga[LI[i[1]]] ** el) AA[LI[i[1]]],
       {{AA, LI[i[2]], k1}, {bar[el], None, k2}, {el, None, k3}}],
-   I ee INS[NC[ga[LI[i[2]]]]],
+   I ee NC[ga[LI[i[2]]]],
    TestID -> "fr-QED-vertex"];
 
 (* general chiral Z coupling: keeps both projectors with their couplings *)
 VerificationTest[
    Expand[feynmanRule[gz (bar[el] ** ga[LI[i[1]]] ** (gL PL + gR PR) ** el) Zb[LI[i[1]]],
       {{Zb, LI[i[2]], k1}, {bar[el], None, k2}, {el, None, k3}}]],
-   Expand[I gz INS[(gL (ga[LI[i[2]]] ** PL) + gR (ga[LI[i[2]]] ** PR))]],
+   Expand[I gz (gL (ga[LI[i[2]]] ** PL) + gR (ga[LI[i[2]]] ** PR))],
    TestID -> "fr-Z-vertex"];
 
 (* derivative -> momentum:  delta(d_mu A_nu)/delta A_al = (-I p_mu) g_{al nu}. *)
@@ -961,3 +961,83 @@ VerificationTest[
       canonical[Expand[GISum[ExplCovD[ExplGaugeMult[dphi]]]]]],
    True,
    TestID -> "covD-order-independence-higgs"];
+
+(* ================================================================== *)
+(*  Dirac trace (D=4) and two-point-function inversion               *)
+(* ================================================================== *)
+
+(* ---- diracTrace: basic identities ---- *)
+VerificationTest[diracTrace[NC[]], 4, TestID -> "trace-identity"];
+VerificationTest[diracTrace[NC[ga[LI[i[1]]]]], 0, TestID -> "trace-single-gamma-zero"];
+VerificationTest[
+   diracTrace[NC[ga[LI[i[1]]], ga[LI[i[2]]]]],
+   4 g[LI[i[1]], LI[i[2]]],
+   TestID -> "trace-two-gamma"];
+VerificationTest[
+   diracTrace[NC[ga[LI[i[1]]], ga[LI[i[2]]], ga[LI[i[3]]], ga[LI[i[4]]]]],
+   4 g[LI[i[1]], LI[i[2]]] g[LI[i[3]], LI[i[4]]]
+   - 4 g[LI[i[1]], LI[i[3]]] g[LI[i[2]], LI[i[4]]]
+   + 4 g[LI[i[1]], LI[i[4]]] g[LI[i[2]], LI[i[3]]],
+   TestID -> "trace-four-gamma"];
+VerificationTest[diracTrace[NC[ga[LI[i[1]]], ga[LI[i[2]]], ga[LI[i[3]]]]], 0,
+   TestID -> "trace-three-gamma-zero"];
+
+(* ---- invertTwoPoint: scalar ---- *)
+VerificationTest[
+   invertTwoPoint[mphi^2 - pSq, p, pSq, "scalar"],
+   1/(mphi^2 - pSq),
+   TestID -> "invert-scalar"];
+
+(* ---- invertTwoPoint: fermion ---- *)
+(* the inverse propagator p-slash - m inverts to (m + p-slash)/(p^2 - m^2) *)
+VerificationTest[
+   Module[{A = NC[ga[LI[i[5]]]] p[LI[i[5]]] - mF, B},
+      B = invertTwoPoint[A, p, pSq, "fermion"];
+      (* defining property: A B = 1  =>  (1/4) Tr[A B] = 1 with no slash residue *)
+      FullSimplify[momSqReduce[diracTrace[NC[A, B]], p, pSq]/4, pSq > 0]],
+   1,
+   TestID -> "invert-fermion-identity"];
+VerificationTest[
+   Module[{A = NC[ga[LI[i[5]]]] p[LI[i[5]]] - mF, B, exp},
+      B   = invertTwoPoint[A, p, pSq, "fermion"];
+      (* the inversion picks the lowest free LI label i[1] for the slash dummy *)
+      exp = (mF + NC[ga[LI[i[1]]]] p[LI[i[1]]])/(pSq - mF^2);
+      Simplify[B - exp, pSq > 0] === 0],
+   True,
+   TestID -> "invert-fermion-closed-form"];
+
+(* ---- invertTwoPoint: vector (massive, 't Hooft R_xi) ---- *)
+VerificationTest[
+   Module[{A, B, exp},
+      A   = (pSq - MV^2) g[LI[i[1]], LI[i[2]]] - (1 - 1/xiV) p[LI[i[1]]] p[LI[i[2]]];
+      B   = invertTwoPoint[A, p, pSq, "vector"];
+      exp = ((pSq - MV^2 xiV) g[LI[i[1]], LI[i[2]]] + (xiV - 1) p[LI[i[1]]] p[LI[i[2]]])/
+            ((MV^2 - pSq) (MV^2 xiV - pSq));
+      Simplify[B - exp, pSq > 0] === 0],
+   True,
+   TestID -> "invert-vector-thooft"];
+
+(* ---- diracTrace is INS-aware: Tr[INS[x]] = INS[Tr[x]] ---- *)
+VerificationTest[
+   diracTrace[INS[NC[ga[LI[i[1]]], ga[LI[i[2]]]]]],
+   4 INS[g[LI[i[1]], LI[i[2]]]],
+   TestID -> "trace-INS-aware"];
+
+(* ---- end-to-end: feynmanRule with two legs -> Propagator -> inversion ---- *)
+(* L = i elbar gamma^mu d_mu el - mEl elbar el  inverts to the Dirac        *)
+(* propagator; the result must carry no leftover INS or trace wrappers.     *)
+VerificationTest[
+   Module[{L, B},
+      L = I bar[el] ** ga[LI[i[1]]] ** d[LI[i[1]]][el] - mEl bar[el] ** el;
+      B = feynmanRule[L, {{bar[el], None, q1}, {el, None, q2}}];
+      {FreeQ[B, INS], FreeQ[B, traceDispatch],
+       Simplify[B - I (mEl - NC[ga[LI[i[1]]]] q1[LI[i[1]]])/(mEl^2 - Sq[q1])]}],
+   {True, True, 0},
+   TestID -> "propagator-fermion-end-to-end"];
+
+(* mismatched leg types raise a message and return $Failed *)
+VerificationTest[
+   Propagator[0, {{HH, None, p1}, {el, FI[i[2]], p2}}],
+   $Failed,
+   {Propagator::legtype},
+   TestID -> "propagator-legtype-mismatch"];

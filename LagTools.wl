@@ -93,6 +93,11 @@ indexFreeQ[e_] := FreeQ[e, Alternatives @@ (Blank /@ $indices)];
 (* ---- metric ----   g symmetric;  g_{mu}^{mu} = D = 4 *)
 SetAttributes[g, Orderless];
 g[LI[i[a_]], LI[i[a_]]] /; IntegerQ[a] := 4;
+(* full double contraction g_{mu nu} g^{mu nu} = D = 4.  A squared metric    *)
+(* with distinct indices is always a complete contraction (a free index is   *)
+(* never squared), so this collapse -- which `contract` misses because the   *)
+(* two metrics auto-combine into a Power -- is unambiguous.                  *)
+g /: g[LI[i[a_]], LI[i[b_]]]^2 := 4 /; a =!= b;
 
 (* ---- Kronecker delta for flavour indices and su2 gauge indices ---- delta symmetric;  delta_{i}^{i} = 3 *)
 SetAttributes[kd3, Orderless];
@@ -210,11 +215,18 @@ extractIndices[t_][e_] /; Head[e] =!= Power := If[AtomQ[e], {}, Join @@ (extract
 
 dummyIndices[t_][e_] := Cases[Tally[extractIndices[t][e]], {x_, 2} :> t[x]];
 
-canonicalizeOneIndexType[e_, indexType_] := Module[{allIdx, dum, open, n, canonIdxLst},
+(* open (free) indices of type t: those appearing exactly once.  Detection   *)
+(* is per monomial, since across a Plus a free index recurs once per summand  *)
+(* and would be miscounted as a dummy; one representative term suffices       *)
+(* (free indices are common to every term).                                  *)
+openIndices[t_][e_] := Module[{term = Expand[e]},
+  term = If[Head[term] === Plus, First[term], term];
+  Cases[Tally @ extractIndices[t][term], {x_, 1} :> t[x]]];
+
+canonicalizeOneIndexType[e_, indexType_] := Module[{dum, open, n, canonIdxLst},
   (* any index appearing twice in expression is a dummy index *)
-  allIdx = extractIndices[indexType][e];
   dum = dummyIndices[indexType][e];
-  open = Complement[indexType /@ allIdx, dum] /. indexType[i[x_]] :> x;
+  open = openIndices[indexType][e] /. indexType[i[x_]] :> x;
   n = Length[dum];
   canonIdxLst = FirstFreeIdx[open, #] & /@ (Range @ n);
   If[n === 0, e,
@@ -225,12 +237,17 @@ canonicalizeOneIndexType[e_, indexType_] := Module[{allIdx, dum, open, n, canonI
   ]
 ];
 
-(* canonical: normalize via Expand[INS[...]] then canonicalize dummy names *)
-canonicalizeINS[x_?indexFreeQ]:=x;
-canonicalizeINS[INS[x_]] := INS[Fold[canonicalizeOneIndexType, x, $indices]];
-canonicalizeINS[e_Plus]  := canonicalizeINS /@ e;
-canonicalizeINS[e_Times]  := canonicalizeINS /@ e;
-canonical[e_] := canonicalizeINS[Expand[INS[e]]];
+(* canonical: normalize via Expand[INS[...]] then canonicalize dummy names. *)
+(* Optional second arg `types` restricts canonicalization to the listed    *)
+(* index types (default: all of $indices).  Use this to skip an index type *)
+(* whose dummy detection cannot be applied to a given expression -- e.g.   *)
+(* a propagator with a flavour-indexed mass in the denominator, where FI   *)
+(* canonicalization is invalid (see fermion propagatorMap entries).        *)
+canonicalizeINS[x_?indexFreeQ, types_:$indices]:=x;
+canonicalizeINS[INS[x_], types_:$indices] := INS[Fold[canonicalizeOneIndexType, x, types]];
+canonicalizeINS[e_Plus, types_:$indices]  := canonicalizeINS[#, types]& /@ e;
+canonicalizeINS[e_Times, types_:$indices] := canonicalizeINS[#, types]& /@ e;
+canonical[e_, types_:$indices] := canonicalizeINS[Expand[INS[e]], types];
 
 (* perform sum over gauge indices *)
 SumOverIndices[expr_, {}] := expr;
@@ -480,7 +497,112 @@ functionalD[L_, legs_] := Module[{e = Expand[L]},
 (* tree-level vertex:  i * delta^n S / delta phi... , contracted, Dirac- and    *)
 (* index-canonicalised *)
 RemoveINS[e_] := e //. {HoldPattern[INS[a_]] -> a};
-feynmanRule[l_, legs_] := I recombineProjectors @ RemoveINS @ Expand @ FullSimplify @ canonical @ diracSimplify @ contract @ functionalD[RemoveINS@l, legs];
+vertexFct[l_, legs_] := I recombineProjectors @ RemoveINS @ Expand @ FullSimplify @ canonical @ diracSimplify @ contract @ functionalD[RemoveINS@l, legs];
+
+(* =================================================================== *)
+(*  Dirac trace (D = 4 spacetime dimensions)                            *)
+(* =================================================================== *)
+(*  Only chains of gamma matrices occur in the two-point functions we    *)
+(*  invert (no chiral projectors survive), so the trace handles pure-     *)
+(*  gamma chains via the standard recursion (any even length; odd -> 0).  *)
+(*  diracTrace is INS-aware: it commutes with the index namespace wrapper *)
+(*  (Tr[INS[x]] = INS[Tr[x]]), so a trace of an INS-resolved chain stays  *)
+(*  inside its namespace and, once the metric indices are contracted away,*)
+(*  the index-free coefficient collapses back out of INS on its own.      *)
+
+traceGammas[{}] := 4;
+traceGammas[lst_List] /; OddQ[Length[lst]] := 0;
+traceGammas[lst_List] := Module[{m1 = First[lst], rest = Rest[lst]},
+   Sum[(-1)^(p + 1) g[First[m1], First[rest[[p]]]] traceGammas[Delete[rest, p]],
+       {p, 1, Length[rest]}]];
+
+diracTrace[e_]                          := traceDispatch @ Expand[e];
+traceDispatch[a_Plus]                   := traceDispatch /@ a;
+traceDispatch[HoldPattern[INS[a_]]]              := INS[diracTrace[a]];
+traceDispatch[c_?diracScalarQ * HoldPattern[INS[a_]]] := c INS[diracTrace[a]];
+traceDispatch[c_?diracScalarQ * ch_NC]  := c traceGammas[List @@ ch];
+traceDispatch[ch_NC]                    := traceGammas[List @@ ch];
+traceDispatch[c_?diracScalarQ]          := 4 c;          (* scalar * identity *)
+
+(* =================================================================== *)
+(*  Two-point-function inversion -> propagator                          *)
+(* =================================================================== *)
+(*  invertTwoPoint[A, p, pSq, type] inverts the (matrix-valued) two-point *)
+(*  function A to the propagator B with  A B = 1  (fermion / scalar) or   *)
+(*  A^{mu nu} B_{nu rho} = delta^mu_rho (vector), following the           *)
+(*  projector-basis method:                                              *)
+(*                                                                        *)
+(*    fermion :  P_pm = 1/2 ( 1 +/- pslash / Sqrt[pSq] ),                 *)
+(*               A_pm = 1/2 Tr[P_pm A],   B = P_+/A_+ + P_-/A_- .          *)
+(*    vector  :  P1 = g - p p / pSq ,  P2 = p p / pSq ,                   *)
+(*               A_i = (P_i : A)/Tr[P_i] (Tr P1 = D-1 = 3, Tr P2 = 1),    *)
+(*               B = P1/A_1 + P2/A_2 .                                    *)
+(*                                                                        *)
+(*  p    : momentum symbol of the line.                                  *)
+(*  pSq  : the scalar invariant p^2 (kept index-free, like the           *)
+(*         propagatorMap denominators).                                  *)
+(*  type : "scalar" | "fermion" | "vector" (supplied by the caller).     *)
+(*  The scalar coefficients A_i are treated as commuting (valid when A    *)
+(*  is diagonal in any internal flavour/colour indices, as at tree level).*)
+
+(* contract, then map the contracted momentum invariant p_mu p^mu (an     *)
+(* indexed Power) onto the index-free scalar pSq used in the propagator   *)
+(* denominators.  The metric self-contraction g_{mu nu} g^{mu nu} = 4 is  *)
+(* handled by the general rule with the metric definitions.               *)
+momSqReduce[e_, p_, pSq_] := contract[Expand[e]] /. Power[p[LI[_]], 2] :> pSq;
+
+invertTwoPoint[A_, p_, pSq_, "scalar"] := 1/A;
+
+invertTwoPoint[A_, p_, pSq_, "fermion"] := Module[
+   {pslash, Pp, Pm, Aplus, Aminus},
+   (* INS gives pslash's dummy a private name so it cannot collide with an  *)
+   (* index already in A; the clash is resolved when NC[P., A] is formed,    *)
+   (* and the fully-contracted coefficients collapse back to plain scalars.  *)
+   pslash = INS[NC[ga[LI[i[1]]]] p[LI[i[1]]]];
+   Pp = (1 + pslash / Sqrt[pSq]) / 2;
+   Pm = (1 - pslash / Sqrt[pSq]) / 2;
+   Aplus  = momSqReduce[diracTrace[NC[Pp, A]], p, pSq] / 2;
+   Aminus = momSqReduce[diracTrace[NC[Pm, A]], p, pSq] / 2;
+   (* final commit of the index namespace, as feynmanRule does for vertices *)
+   RemoveINS @ FullSimplify[Pp/Aplus + Pm/Aminus, pSq > 0]];
+
+invertTwoPoint[A_, p_, pSq_, "vector"] := Module[
+   {mu, nu, P1, P2, A1, A2},
+   {mu, nu} = openIndices[LI][A];
+   P1 = g[mu, nu] - p[mu] p[nu] / pSq;
+   P2 = p[mu] p[nu] / pSq;
+   A1 = momSqReduce[P1 A, p, pSq] / 3;  (* / (D-1) *)
+   A2 = momSqReduce[P2 A, p, pSq];
+   FullSimplify[P1/A1 + P2/A2, pSq > 0]];
+
+(* =================================================================== *)
+(*  Propagator: invert the two-point function                           *)
+(* =================================================================== *)
+(*  The field type of a leg {field, idx, mom} is read off the leg: a     *)
+(*  Lorentz (LI) index -> vector, a fermion field -> fermion, otherwise  *)
+(*  scalar (incl. ghosts, with index None).                              *)
+legFieldType[{f_, idx_, _}] := Which[
+   fermionQ[f] || Head[f] === bar, "fermion",
+   Head[idx] === LI,               "vector",
+   True,                           "scalar"];
+
+Propagator::legtype = "The two legs carry different field types (`1`, `2`).";
+
+(*  Propagator[L, {{F1,idx1,p1}, {F2,idx2,p2}}]:  build the two-point      *)
+(*  function from L, impose momentum conservation p2 = -p1, and invert    *)
+(*  with line momentum p1.  Sq[p1] is the index-free scalar invariant     *)
+(*  p1^2 used in the denominators.                                        *)
+Propagator[l_, legs : {{_, _, _}, {_, _, _}}] := Module[
+   {p1 = legs[[1, 3]], p2 = legs[[2, 3]], t1, t2, A},
+   t1 = legFieldType[legs[[1]]];
+   t2 = legFieldType[legs[[2]]];
+   If[t1 =!= t2, Message[Propagator::legtype, t1, t2]; Return[$Failed]];
+   A = vertexFct[l, legs] /. p2[a___] :> -p1[a];   (* p2 = -p1 *)
+   invertTwoPoint[A, p1, Sq[p1], t1]];
+
+(* feynmanRule dispatches: two external legs -> propagator, else vertex. *)
+feynmanRule[l_, legs_] :=
+   If[Length[legs] === 2, Propagator[l, legs], vertexFct[l, legs]];
 
 (* =================================================================== *)
 (*  Gauge multiplet infrastructure                                      *)

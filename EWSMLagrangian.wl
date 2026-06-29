@@ -70,6 +70,7 @@ DeclareRealParam[MZ, Subscript["M", "Z"]];
 DeclareRealParam[MH, Subscript["M", "H"]];
 DeclareRealParam[xiW, Subscript["\[Xi]", "W"]];
 DeclareRealParam[xiZ, Subscript["\[Xi]", "Z"]];
+DeclareRealParam[xiA, Subscript["\[Xi]", "A"]];
 
 (* sw^2 = 1-cw^2 as shorthand without having to do transformations between the two *)
 sw = Sqrt[1 - cw^2];
@@ -337,9 +338,9 @@ CWp[mu_] := d[LI[mu]][Wp[LI[mu]]] - I MW xiW phi;
 CWm[mu_] := d[LI[mu]][Wm[LI[mu]]] + I MW xiW phim;
 
 Lfix = Expand[ (* could also use INS here ... *)
-  -(1/2) CA[i[1]]  CA[i[2]]
-  -(1/2) CZ[i[1]]  CZ[i[2]]
-  -      CWp[i[1]] CWm[i[2]]
+  - 1/(2 * xiA) CA[i[1]]  CA[i[2]]
+  - 1/(2 * xiZ) CZ[i[1]]  CZ[i[2]]
+  - 1/xiW *     CWp[i[1]] CWm[i[2]]
 ];
 
 (* ---- Variations of gauge-fixing conditions under gauge transformations ---- *)
