@@ -278,7 +278,7 @@ INS[INS[a_]]                               := INS[a];
 INS[c_?indexFreeQ]                         := c;
 INS[c_?indexFreeQ * a_]                    := c * INS[a];
 INS[a_Plus]                                := INS /@ a;
-INS[a_Times] /; MemberQ[List @@ a, _Plus] := INS[Expand[a]];
+INS[a_Times] /; AnyTrue[List @@ a, MatchQ[#, _Plus | Power[_Plus, _Integer?Positive]] &] := INS[Expand[a]];
 INS[Power[a_Plus, b_?NumericQ]]            := INS[Expand[Power[a, b]]];
 
 INS /: HoldPattern[NC[INS[a_]]] := INS[NC[a]];
@@ -449,13 +449,17 @@ renormMix[h1_, h2_, dZ11_, dZ12_, dZ21_, dZ22_] := {
 (* fdiffINS operates on bare or INS-wrapped expressions.  The INS rule       *)
 (* renames dummies in x that clash with the leg index xi before recursing,   *)
 (* mirroring the same pattern used in d[mu_][HoldPattern[INS[a_]]].          *)
+(* fieldFreeQ handles bar[f] correctly: bar[el] is NOT a subexpression of    *)
+(* bar[el[FI[...]]], so FreeQ[expr, bar[el]] would wrongly return True.      *)
+fieldFreeQ[expr_, bar[f_]] := FreeQ[expr, bar[f] | bar[f[___]]];
+fieldFreeQ[expr_, f_]      := FreeQ[expr, f];
 fdiffINS[lg_, a_Plus]     := fdiffINS[lg, #] & /@ a;
 fdiffINS[{f_, xi_, p_}, HoldPattern[INS[x_]]] := INS[fdiffINS[{f, xi, p}, resolvedE2[xi, x]]];
 fdiffINS[lg_, c_]         := 0 /; STindepQ[c];
 (* Batch-handle Times: factor out all STindep constants at once, then apply  *)
 (* Leibniz only to field-dependent factors.                                  *)
 fdiffINS[lg : {f_, _, _}, t_Times] :=
-  If[FreeQ[t, f], 0,
+  If[fieldFreeQ[t, f], 0,
     With[{factors = List @@ t},
       With[{mask = STindepQ /@ factors},
         With[{cPart = Pick[factors, mask], fPart = Pick[factors, mask, False]},
@@ -493,14 +497,14 @@ fdiffINS[{f_, xi_, p_}, ch_NC] := With[{l = List @@ ch},
 {n,1,Length[l]}]
 ];
 (* anything independent of the leg field -> 0 *)
-fdiffINS[{f_, _, _}, x_] := 0 /; FreeQ[x, f];
+fdiffINS[{f_, _, _}, x_] := 0 /; fieldFreeQ[x, f];
 
 (* public API: select summands that contain the fields and wrap in INS to  *)
 (* resolve clash with the leg index           *)
 SumToList[e_] := If[Head[e] === Plus, List @@ e, {e}];
 
 fdiff[lg: {f_, _, _}, e_] :=
-  Total[fdiffINS[lg, INS[#]] & /@ Select[SumToList @ Expand @ e, ! FreeQ[#, f] &]];
+  Total[fdiffINS[lg, INS[#]] & /@ Select[SumToList @ Expand @ e, ! fieldFreeQ[#, f] &]];
 
 (* =================================================================== *)
 (*  Feynman rules                                                      *)
@@ -512,15 +516,17 @@ setZero[a_?fieldQ] := 0;
 setZero[ElectricCharge[x_]] := ElectricCharge[x];
 setZero[e_] := Map[setZero, e];
 
-functionalD[L_, legs_] := Module[{e = Expand[L]},
-  (*fields = DeleteDuplicates[First /@ legs];*)
-  (* Pre-filter: a summand that lacks any leg field gives 0 after all diffs; *)
-  (* drop it immediately to avoid distributing INS over the full Lagrangian. *)
-  (*If[Head[e] === Plus,
-    e = Total @ Select[List @@ e, And @@ ((!FreeQ[e, #] &) /@ fields) &]
-  ];*)
-  Do[e = Expand[fdiff[lg, e]], {lg, legs}];
-  Expand[setZero[e]]];
+fdiffAll[expr_, legs_] := Fold[Expand@fdiffINS[#2, #1] &, INS[expr], legs];
+
+functionalD[expr_, legs_] := Module[{fields, inds, terms, terms2,tot},
+  fields = DeleteDuplicates[First /@ legs];
+  inds = DeleteDuplicates[#[[2]] & /@ legs];
+  terms = 
+   Select[SumToList[Expand[expr]], 
+    Function[e, And @@ ((! fieldFreeQ[e, #] &) /@ fields)]];
+  terms2 = resolvedE2[inds, #] & /@ terms;
+  tot=Total[fdiffAll[#, legs] & /@ terms2];
+  Expand[setZero[tot]]];
 
 (* Diagonal mass matrices expanded to kd3*mass form by model; load-order-save stub *)
 ExplMassMat[e_] := e;

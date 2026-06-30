@@ -517,6 +517,12 @@ VerificationTest[
    True,
    TestID -> "INS-expand-then-GISum"];
 
+(* INS auto-expands Times of Power[Plus, n] factors (bug: dummyIndices returned {} before fix) *)
+VerificationTest[
+   Head[INS[(Wm[LI[i[1]]] - Wp[LI[i[1]]])^2 (Wm[LI[i[2]]] + Wp[LI[i[2]]])^2]],
+   Plus,
+   TestID -> "INS-autoexpand-power-of-sum"];
+
 (* INS does NOT merge under Plus — each summand stays wrapped *)
 VerificationTest[
    Head[INS[W1[GI[i[1]]] W2[GI[i[1]]]] + INS[W2[GI[i[1]]] W3[GI[i[1]]]]],
