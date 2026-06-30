@@ -10,10 +10,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       154,          7]
-NotebookDataLength[    654164,      17683]
-NotebookOptionsPosition[    650356,      17607]
-NotebookOutlinePosition[    650746,      17623]
-CellTagsIndexPosition[    650703,      17620]
+NotebookDataLength[    653386,      17666]
+NotebookOptionsPosition[    649578,      17590]
+NotebookOutlinePosition[    649968,      17606]
+CellTagsIndexPosition[    649925,      17603]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -412,30 +412,30 @@ Cell[BoxData[
   "First", "normal", 
    "\"Nonatomic expression expected at position \
 \\!\\(\\*RowBox[{\\\"1\\\"}]\\) in \\!\\(\\*RowBox[{\\\"First\\\", \\\"[\\\", \
-SubscriptBox[\\\"P\\\", \\\"L\\\"], \\\"]\\\"}]\\).\"", 2, 8, 3, 
+SubscriptBox[\\\"P\\\", \\\"L\\\"], \\\"]\\\"}]\\).\"", 2, 10, 5, 
    18875299421793045736, "Local"},
   "MessageTemplate",
   BaseStyle->"MSG"]], "Message",
  CellChangeTimes->{3.991756964653561*^9, 3.991797443000802*^9, 
-  3.991798640450035*^9},
+  3.991798640450035*^9, 3.991798826301317*^9},
  CellLabel->
   "During evaluation of \
-In[8]:=",ExpressionUUID->"f420ced7-cee3-4838-bfa1-05310f760fd5"],
+In[10]:=",ExpressionUUID->"5e182693-c79c-45f5-8100-3ff67f0ad45a"],
 
 Cell[BoxData[
  TemplateBox[{
   "First", "normal", 
    "\"Nonatomic expression expected at position \
 \\!\\(\\*RowBox[{\\\"1\\\"}]\\) in \\!\\(\\*RowBox[{\\\"First\\\", \\\"[\\\", \
-SubscriptBox[\\\"P\\\", \\\"L\\\"], \\\"]\\\"}]\\).\"", 2, 8, 4, 
+SubscriptBox[\\\"P\\\", \\\"L\\\"], \\\"]\\\"}]\\).\"", 2, 10, 6, 
    18875299421793045736, "Local"},
   "MessageTemplate",
   BaseStyle->"MSG"]], "Message",
  CellChangeTimes->{3.991756964653561*^9, 3.991797443000802*^9, 
-  3.991798640454214*^9},
+  3.991798640450035*^9, 3.991798826305787*^9},
  CellLabel->
   "During evaluation of \
-In[8]:=",ExpressionUUID->"14f3744f-be91-4cf2-874d-1dda0cda6cb8"],
+In[10]:=",ExpressionUUID->"8e632732-a0c8-4f49-802d-d48d031dcfbb"],
 
 Cell[BoxData[
  TagBox[GridBox[{
@@ -1489,12 +1489,14 @@ Cell[BoxData[
             RowBox[{"\[ImaginaryI]", " ", 
               RowBox[{"(", 
                 RowBox[{
-                  SubsuperscriptBox[
-                   
-                   TemplateBox[{"\"M\"", "\"(d)\""}, "Superscript", 
-                    SyntaxForm -> SuperscriptBox], 
-                   RowBox[{"j", "k"}], 
-                   RowBox[{}]], "+", 
+                  RowBox[{
+                    SubsuperscriptBox["\[Delta]", 
+                    RowBox[{"j", "k"}], 
+                    RowBox[{}]], " ", 
+                    SubsuperscriptBox[
+                    SubscriptBox["\"m\"", "\"d\""], 
+                    RowBox[{"j"}], 
+                    RowBox[{}]]}], "+", 
                   RowBox[{
                     SubsuperscriptBox["\[Delta]", 
                     RowBox[{"j", "k"}], 
@@ -1554,28 +1556,19 @@ Cell[BoxData[
           "RowDefault"]},
         {
          TemplateBox[{"\"  difference: \"", 
-           RowBox[{"-", 
-             FractionBox[
-              RowBox[{"\[ImaginaryI]", " ", 
-                RowBox[{"(", 
-                  RowBox[{
-                    SubsuperscriptBox[
-                    
-                    TemplateBox[{"\"M\"", "\"(d)\""}, "Superscript", 
-                    SyntaxForm -> SuperscriptBox], 
-                    RowBox[{"j", "k"}], 
-                    RowBox[{}]], "+", 
-                    RowBox[{
-                    SubsuperscriptBox["\[Delta]", 
-                    RowBox[{"j", "k"}], 
-                    RowBox[{}]], " ", 
-                    RowBox[{"(", 
-                    RowBox[{
+           FractionBox[
+            RowBox[{"\[ImaginaryI]", " ", 
+              SubsuperscriptBox["\[Delta]", 
+               RowBox[{"j", "k"}], 
+               RowBox[{}]], " ", 
+              RowBox[{"(", 
+                RowBox[{
+                  RowBox[{"2", " ", 
                     SubsuperscriptBox[
                     SubscriptBox["\"m\"", "\"d\""], 
                     RowBox[{"j"}], 
-                    RowBox[{}]], "+", 
-                    RowBox[{
+                    RowBox[{}]]}], "+", 
+                  RowBox[{
                     RowBox[{
                     SubsuperscriptBox["\[Gamma]", 
                     RowBox[{"\[Mu]"}], 
@@ -1583,24 +1576,25 @@ Cell[BoxData[
                     SubsuperscriptBox["p2", 
                     RowBox[{"\[Mu]"}], 
                     RowBox[{}]]}], "-", 
-                    RowBox[{
+                  RowBox[{
                     RowBox[{
                     SubsuperscriptBox["\[Gamma]", 
                     RowBox[{"\[Lambda]"}], 
                     RowBox[{}]]}], " ", 
                     SubsuperscriptBox["p2", 
                     RowBox[{"\[Lambda]"}], 
-                    RowBox[{}]]}]}], ")"}]}]}], ")"}]}], 
-              RowBox[{
+                    RowBox[{}]]}]}], ")"}]}], 
+            RowBox[{
+              RowBox[{"-", 
                 SuperscriptBox[
                  RowBox[{"(", 
                    SubsuperscriptBox[
                     SubscriptBox["\"m\"", "\"d\""], 
                     RowBox[{"j"}], 
-                    RowBox[{}]], ")"}], "2"], "-", 
-                
-                TemplateBox[{"p1", "2"}, "Superscript", SyntaxForm -> 
-                 SuperscriptBox]}]]}]},
+                    RowBox[{}]], ")"}], "2"]}], "+", 
+              
+              TemplateBox[{"p1", "2"}, "Superscript", SyntaxForm -> 
+               SuperscriptBox]}]]},
           "RowDefault"]},
         {
          TemplateBox[{0},
@@ -1637,12 +1631,14 @@ Cell[BoxData[
             RowBox[{"\[ImaginaryI]", " ", 
               RowBox[{"(", 
                 RowBox[{
-                  SubsuperscriptBox[
-                   
-                   TemplateBox[{"\"M\"", "\"(l)\""}, "Superscript", 
-                    SyntaxForm -> SuperscriptBox], 
-                   RowBox[{"j", "k"}], 
-                   RowBox[{}]], "+", 
+                  RowBox[{
+                    SubsuperscriptBox["\[Delta]", 
+                    RowBox[{"j", "k"}], 
+                    RowBox[{}]], " ", 
+                    SubsuperscriptBox[
+                    SubscriptBox["\"m\"", "\"l\""], 
+                    RowBox[{"j"}], 
+                    RowBox[{}]]}], "+", 
                   RowBox[{
                     SubsuperscriptBox["\[Delta]", 
                     RowBox[{"j", "k"}], 
@@ -1702,28 +1698,19 @@ Cell[BoxData[
           "RowDefault"]},
         {
          TemplateBox[{"\"  difference: \"", 
-           RowBox[{"-", 
-             FractionBox[
-              RowBox[{"\[ImaginaryI]", " ", 
-                RowBox[{"(", 
-                  RowBox[{
-                    SubsuperscriptBox[
-                    
-                    TemplateBox[{"\"M\"", "\"(l)\""}, "Superscript", 
-                    SyntaxForm -> SuperscriptBox], 
-                    RowBox[{"j", "k"}], 
-                    RowBox[{}]], "+", 
-                    RowBox[{
-                    SubsuperscriptBox["\[Delta]", 
-                    RowBox[{"j", "k"}], 
-                    RowBox[{}]], " ", 
-                    RowBox[{"(", 
-                    RowBox[{
+           FractionBox[
+            RowBox[{"\[ImaginaryI]", " ", 
+              SubsuperscriptBox["\[Delta]", 
+               RowBox[{"j", "k"}], 
+               RowBox[{}]], " ", 
+              RowBox[{"(", 
+                RowBox[{
+                  RowBox[{"2", " ", 
                     SubsuperscriptBox[
                     SubscriptBox["\"m\"", "\"l\""], 
                     RowBox[{"j"}], 
-                    RowBox[{}]], "+", 
-                    RowBox[{
+                    RowBox[{}]]}], "+", 
+                  RowBox[{
                     RowBox[{
                     SubsuperscriptBox["\[Gamma]", 
                     RowBox[{"\[Mu]"}], 
@@ -1731,24 +1718,25 @@ Cell[BoxData[
                     SubsuperscriptBox["p2", 
                     RowBox[{"\[Mu]"}], 
                     RowBox[{}]]}], "-", 
-                    RowBox[{
+                  RowBox[{
                     RowBox[{
                     SubsuperscriptBox["\[Gamma]", 
                     RowBox[{"\[Lambda]"}], 
                     RowBox[{}]]}], " ", 
                     SubsuperscriptBox["p2", 
                     RowBox[{"\[Lambda]"}], 
-                    RowBox[{}]]}]}], ")"}]}]}], ")"}]}], 
-              RowBox[{
+                    RowBox[{}]]}]}], ")"}]}], 
+            RowBox[{
+              RowBox[{"-", 
                 SuperscriptBox[
                  RowBox[{"(", 
                    SubsuperscriptBox[
                     SubscriptBox["\"m\"", "\"l\""], 
                     RowBox[{"j"}], 
-                    RowBox[{}]], ")"}], "2"], "-", 
-                
-                TemplateBox[{"p1", "2"}, "Superscript", SyntaxForm -> 
-                 SuperscriptBox]}]]}]},
+                    RowBox[{}]], ")"}], "2"]}], "+", 
+              
+              TemplateBox[{"p1", "2"}, "Superscript", SyntaxForm -> 
+               SuperscriptBox]}]]},
           "RowDefault"]},
         {
          TemplateBox[{0},
@@ -1881,12 +1869,14 @@ Cell[BoxData[
             RowBox[{"\[ImaginaryI]", " ", 
               RowBox[{"(", 
                 RowBox[{
-                  SubsuperscriptBox[
-                   
-                   TemplateBox[{"\"M\"", "\"(u)\""}, "Superscript", 
-                    SyntaxForm -> SuperscriptBox], 
-                   RowBox[{"j", "k"}], 
-                   RowBox[{}]], "+", 
+                  RowBox[{
+                    SubsuperscriptBox["\[Delta]", 
+                    RowBox[{"j", "k"}], 
+                    RowBox[{}]], " ", 
+                    SubsuperscriptBox[
+                    SubscriptBox["\"m\"", "\"u\""], 
+                    RowBox[{"j"}], 
+                    RowBox[{}]]}], "+", 
                   RowBox[{
                     SubsuperscriptBox["\[Delta]", 
                     RowBox[{"j", "k"}], 
@@ -1940,33 +1930,25 @@ Cell[BoxData[
                     SubscriptBox["\"m\"", "\"u\""], 
                     RowBox[{"j"}], 
                     RowBox[{}]], ")"}], "2"]}], "+", 
+              
               TemplateBox[{"p1", "2"}, "Superscript", SyntaxForm -> 
                SuperscriptBox]}]]},
           "RowDefault"]},
         {
          TemplateBox[{"\"  difference: \"", 
-           RowBox[{"-", 
-             FractionBox[
-              RowBox[{"\[ImaginaryI]", " ", 
-                RowBox[{"(", 
-                  RowBox[{
-                    SubsuperscriptBox[
-                    
-                    TemplateBox[{"\"M\"", "\"(u)\""}, "Superscript", 
-                    SyntaxForm -> SuperscriptBox], 
-                    RowBox[{"j", "k"}], 
-                    RowBox[{}]], "+", 
-                    RowBox[{
-                    SubsuperscriptBox["\[Delta]", 
-                    RowBox[{"j", "k"}], 
-                    RowBox[{}]], " ", 
-                    RowBox[{"(", 
-                    RowBox[{
+           FractionBox[
+            RowBox[{"\[ImaginaryI]", " ", 
+              SubsuperscriptBox["\[Delta]", 
+               RowBox[{"j", "k"}], 
+               RowBox[{}]], " ", 
+              RowBox[{"(", 
+                RowBox[{
+                  RowBox[{"2", " ", 
                     SubsuperscriptBox[
                     SubscriptBox["\"m\"", "\"u\""], 
                     RowBox[{"j"}], 
-                    RowBox[{}]], "+", 
-                    RowBox[{
+                    RowBox[{}]]}], "+", 
+                  RowBox[{
                     RowBox[{
                     SubsuperscriptBox["\[Gamma]", 
                     RowBox[{"\[Mu]"}], 
@@ -1974,24 +1956,25 @@ Cell[BoxData[
                     SubsuperscriptBox["p2", 
                     RowBox[{"\[Mu]"}], 
                     RowBox[{}]]}], "-", 
-                    RowBox[{
+                  RowBox[{
                     RowBox[{
                     SubsuperscriptBox["\[Gamma]", 
                     RowBox[{"\[Lambda]"}], 
                     RowBox[{}]]}], " ", 
                     SubsuperscriptBox["p2", 
                     RowBox[{"\[Lambda]"}], 
-                    RowBox[{}]]}]}], ")"}]}]}], ")"}]}], 
-              RowBox[{
+                    RowBox[{}]]}]}], ")"}]}], 
+            RowBox[{
+              RowBox[{"-", 
                 SuperscriptBox[
                  RowBox[{"(", 
                    SubsuperscriptBox[
                     SubscriptBox["\"m\"", "\"u\""], 
                     RowBox[{"j"}], 
-                    RowBox[{}]], ")"}], "2"], "-", 
-                
-                TemplateBox[{"p1", "2"}, "Superscript", SyntaxForm -> 
-                 SuperscriptBox]}]]}]},
+                    RowBox[{}]], ")"}], "2"]}], "+", 
+              
+              TemplateBox[{"p1", "2"}, "Superscript", SyntaxForm -> 
+               SuperscriptBox]}]]},
           "RowDefault"]},
         {
          TemplateBox[{0},
@@ -2009,8 +1992,8 @@ Cell[BoxData[
    GridBoxItemSize->{"Columns" -> {{Automatic}}, "Rows" -> {{Automatic}}}],
   "Column"]], "Output",
  CellChangeTimes->{3.991756965504451*^9, 3.991797443738059*^9, 
-  3.991798641001429*^9},
- CellLabel->"Out[9]=",ExpressionUUID->"623b910f-2859-4b1c-bf1d-b8d8bd838df4"]
+  3.991798641001429*^9, 3.991798826728154*^9},
+ CellLabel->"Out[11]=",ExpressionUUID->"7ab7a102-32fd-474e-b5fe-ffabed2d38fd"]
 }, Open  ]]
 }, Open  ]],
 
@@ -17655,33 +17638,33 @@ Cell[10395, 310, 609, 15, 35, "Output",ExpressionUUID->"e7bac679-368b-4add-a049-
 }, Open  ]],
 Cell[CellGroupData[{
 Cell[11041, 330, 2957, 77, 274, "Input",ExpressionUUID->"d20c147c-14e0-4a3c-a2ea-6b3facade53d"],
-Cell[14001, 409, 528, 13, 26, "Message",ExpressionUUID->"f420ced7-cee3-4838-bfa1-05310f760fd5"],
-Cell[14532, 424, 528, 13, 26, "Message",ExpressionUUID->"14f3744f-be91-4cf2-874d-1dda0cda6cb8"],
-Cell[15063, 439, 59847, 1573, 1975, "Output",ExpressionUUID->"623b910f-2859-4b1c-bf1d-b8d8bd838df4"]
+Cell[14001, 409, 552, 13, 26, "Message",ExpressionUUID->"5e182693-c79c-45f5-8100-3ff67f0ad45a"],
+Cell[14556, 424, 552, 13, 26, "Message",ExpressionUUID->"8e632732-a0c8-4f49-802d-d48d031dcfbb"],
+Cell[15111, 439, 59021, 1556, 1974, "Output",ExpressionUUID->"7ab7a102-32fd-474e-b5fe-ffabed2d38fd"]
 }, Open  ]]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[74959, 2018, 192, 3, 66, "Section",ExpressionUUID->"5d8c7d75-5ef8-4ce6-b178-49cf5bfa43c2"],
+Cell[74181, 2001, 192, 3, 66, "Section",ExpressionUUID->"5d8c7d75-5ef8-4ce6-b178-49cf5bfa43c2"],
 Cell[CellGroupData[{
-Cell[75176, 2025, 2790, 74, 274, "Input",ExpressionUUID->"d6321762-a14d-47b8-af56-5778856cc010"],
-Cell[77969, 2101, 292398, 7920, 11053, "Output",ExpressionUUID->"f37f6180-9786-4d64-b741-a2629ec382cf"]
+Cell[74398, 2008, 2790, 74, 274, "Input",ExpressionUUID->"d6321762-a14d-47b8-af56-5778856cc010"],
+Cell[77191, 2084, 292398, 7920, 11053, "Output",ExpressionUUID->"f37f6180-9786-4d64-b741-a2629ec382cf"]
 }, Open  ]]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[370416, 10027, 243, 4, 66, "Section",ExpressionUUID->"57c547c4-4805-4cba-b801-2585d6334750"],
+Cell[369638, 10010, 243, 4, 66, "Section",ExpressionUUID->"57c547c4-4805-4cba-b801-2585d6334750"],
 Cell[CellGroupData[{
-Cell[370684, 10035, 170, 3, 53, "Subsection",ExpressionUUID->"b2dc3be1-410f-434c-bda7-0ce4880bd41c"],
+Cell[369906, 10018, 170, 3, 53, "Subsection",ExpressionUUID->"b2dc3be1-410f-434c-bda7-0ce4880bd41c"],
 Cell[CellGroupData[{
-Cell[370879, 10042, 419, 10, 29, "Input",ExpressionUUID->"6c1e6aa7-cf17-4474-9cd7-2077362818a6"],
-Cell[371301, 10054, 7182, 178, 171, "Output",ExpressionUUID->"fd919326-e652-48cf-a3a4-89ff715d6383"]
+Cell[370101, 10025, 419, 10, 29, "Input",ExpressionUUID->"6c1e6aa7-cf17-4474-9cd7-2077362818a6"],
+Cell[370523, 10037, 7182, 178, 171, "Output",ExpressionUUID->"fd919326-e652-48cf-a3a4-89ff715d6383"]
 }, Open  ]]
 }, Open  ]],
 Cell[CellGroupData[{
-Cell[378532, 10238, 165, 3, 53, "Subsection",ExpressionUUID->"d51d4a69-4fc7-43fb-8caa-559146c31ad6"],
-Cell[378700, 10243, 2618, 70, 254, "Input",ExpressionUUID->"50f85272-6667-4e67-9f24-2d200af6be33"],
+Cell[377754, 10221, 165, 3, 53, "Subsection",ExpressionUUID->"d51d4a69-4fc7-43fb-8caa-559146c31ad6"],
+Cell[377922, 10226, 2618, 70, 254, "Input",ExpressionUUID->"50f85272-6667-4e67-9f24-2d200af6be33"],
 Cell[CellGroupData[{
-Cell[381343, 10317, 987, 17, 29, "Input",ExpressionUUID->"a80cf627-0f96-4ef9-96f2-038042138339"],
-Cell[382333, 10336, 267983, 7266, 10820, "Output",ExpressionUUID->"8c98c20c-ab6d-4689-9c2d-f0bd1d0c6b18"]
+Cell[380565, 10300, 987, 17, 29, "Input",ExpressionUUID->"a80cf627-0f96-4ef9-96f2-038042138339"],
+Cell[381555, 10319, 267983, 7266, 10820, "Output",ExpressionUUID->"8c98c20c-ab6d-4689-9c2d-f0bd1d0c6b18"]
 }, Open  ]]
 }, Closed]]
 }, Open  ]]
