@@ -1,70 +1,28 @@
 (* ::Package:: *)
 
 (* ===================================================================== *)
-(*  feynRulesReference.wl                                                 *)
-(*                                                                        *)
-(*  Reference (KNOWN-CORRECT) EWSM Feynman rules, transcribed from        *)
+(*  Reference for EWSM Feynman rules, transcribed from                   *)
+(*  Denner, Dittmaier EW review.                                         *)
 (*  ewsmFeynRulesCorrect.tex (Denner/Dittmaier conventions).             *)
-(*                                                                        *)
-(*  Full one-loop COUNTERTERM rules: tree term (the "1") + counterterms.  *)
-(*  Counterterms from renormalization of UNPHYSICAL fields (Goldstone /   *)
-(*  ghost field renorm) and gauge-fixing are NOT included, following the  *)
-(*  tex.                                                                  *)
-(*                                                                        *)
-(*  Keys match the entries of `feynmanRules` in EWSMLagrangian.wl.        *)
-(*  Only genuine VERTICES are provided (2-point / propagator counterterms *)
-(*  are skipped).                                                         *)
-(*                                                                        *)
-(*  CONVENTIONS                                                           *)
-(*   * all momenta p1,p2,p3,p4 flow INTO the vertex (tex k_i -> p_i,      *)
-(*     in leg order);                                                     *)
-(*   * Lorentz/flavour indices are taken from the leg specification, e.g. *)
-(*     {AA,LI[i[1]],p3} contributes index LI[i[1]];                       *)
-(*   * Dirac structures are wrapped in NC[..]; omega_- -> PL, omega_+ -> PR; *)
-(*   * metric -> g[LI[..],LI[..]], delta_ij -> kd3[FI[..],FI[..]];        *)
-(*   * a field-renorm matrix carries two flavour indices, e.g.            *)
-(*     dZeL[FI[i],FI[j]] = (dZ^{e,L})_{ij};  its hermitian conjugate is   *)
-(*     (dZ^{e,L,dagger})_{ij} = Conjugate[dZeL[FI[j],FI[i]]];             *)
-(*   * repeated flavour dummy index FI[i[4]] is summed (sum over k).      *)
 (* ===================================================================== *)
 
-
-(* --------------------------------------------------------------------- *)
-(*  Helper definitions for counterterm constants not among the primitive  *)
-(*  renormalization constants of EWSMLagrangian.wl.                       *)
-(* --------------------------------------------------------------------- *)
-
-(* sw,cw renormalization ratios delta s / s and delta c / c are kept as    *)
-(* the OPAQUE symbols  dsw , dcw  inside the stored Feynman rules (so the   *)
-(* rules stay readable and checkable against the reference).  Expand them   *)
-(* only when actually evaluating, via the replacement rule below:           *)
-(*     feynruleMap[legs] /. expandSC                                        *)
+(* shorthand replacement rules for sw and cw counterterms *)
 expandSC = {
   dsw -> -(cw^2/(2 sw^2)) (dMW2/MW^2 - dMZ2/MZ^2),   (* delta s / s *)
   dcw ->  (1/2)            (dMW2/MW^2 - dMZ2/MZ^2)    (* delta c / c *)
 };
 
-(* weak isospin T^3 of the fermions (electric charge via ElectricCharge[]) *)
+(* weak isospin T^3 of the fermions *)
 I3f[nu] = 1/2;  I3f[el] = -1/2;  I3f[uq] = 1/2;  I3f[dq] = -1/2;
 
-(* Z chiral couplings g_f^+- and their counterterms (tex eq. geZ) *)
+(* Z chiral couplings g_f^+- and their counterterms *)
 gpf[f_] := -(sw/cw) ElectricCharge[f];
 gmf[f_] := (I3f[f] - sw^2 ElectricCharge[f])/(sw cw);
 dgpf[f_] := -(sw/cw) ElectricCharge[f] (dZe + (1/cw^2) dsw);
 dgmf[f_] := (I3f[f]/(sw cw)) (dZe + ((sw^2 - cw^2)/cw^2) dsw) + dgpf[f];
 
-(* Further independent counterterms used below (symbolic):                *)
-(*   dtFJ, dtPR                : tadpole CTs (FJTS / PRTS schemes)         *)
-(*   dV[FI[a],FI[b]]           : CKM-matrix CT  delta V_{ab}               *)
-(*   dZeL,dZeR,dZnuL,dZuL,dZuR,dZdL,dZdR  : field-renorm matrices [FI,FI]  *)
-
-(* Fermion masses appear ONLY through the diagonal mass matrices           *)
-(* Mdiagl,Mdiagu,Mdiagd (defined in EWSMLagrangian.wl), so that no bare    *)
-(* m_{f,i} ever carries a repeated flavour index (which the summation      *)
-(* convention would mis-contract: delta_ij m_i -> Mdiagl_ij, and a mass    *)
-(* sandwiched in a product becomes a matrix factor, e.g. m_i (dZ)_ij ->    *)
-(* Mdiag_ik (dZ)_kj summed over k).  Their counterterms                    *)
-(* dMdiagl/dMdiagu/dMdiagd ( = delta_ij delta m_{f,i} ) are declared here. *)
+(* Fermion masses appear through the diagonal mass matrices Mdiagl, Mdiagu, *)(* Mdiagd (defined in EWSMLagrangian.wl) in order to be able to use sum     *) 
+(* convention                                                               *)
 SetAttributes[dMdiagl, Orderless];
 SetAttributes[dMdiagu, Orderless];
 SetAttributes[dMdiagd, Orderless];
@@ -72,11 +30,8 @@ Scan[(# /: Conjugate[#] := #) &, {dMdiagl, dMdiagu, dMdiagd}];
 
 ClearAll[feynruleMap];
 
-
 (* ===================================================================== *)
 (*  TRIPLE GAUGE   VVV                                                    *)
-(*  i e C [ g_mn (k1-k2)_r + g_nr (k2-k3)_m + g_rm (k3-k1)_n ]            *)
-(*  (mu,nu,rho)=(LI[i[1]],LI[i[2]],LI[i[3]]) ; (k1,k2,k3)=(p1,p2,p3)      *)
 (* ===================================================================== *)
 
 vvvTensor[ma_, mb_, mc_] :=
@@ -92,8 +47,7 @@ feynruleMap[{{Zb, LI[i[1]], p1}, {Wp, LI[i[2]], p2}, {Wm, LI[i[3]], p3}}] =
 
 
 (* ===================================================================== *)
-(*  SCALAR - VECTOR - VECTOR   S V V :   i e g_mn C                       *)
-(*  (the two vector legs supply the metric indices)                      *)
+(*  SCALAR - VECTOR - VECTOR   S V V                                     *)
 (* ===================================================================== *)
 
 (* H W+ W- *)
@@ -108,13 +62,12 @@ feynruleMap[{{HH, None, p1}, {Zb, LI[i[1]], p2}, {Zb, LI[i[2]], p3}}] =
     MW (1/(sw cw^2)) (1 + dZe + ((2 sw^2 - cw^2)/cw^2) dsw + 1/2 dMW2/MW^2
                - ee/(2 sw MH^2 MW) dtFJ + 1/2 dZH + dZZZ);
 
-(* H A Z  (pure counterterm, from Z-A mixing) *)
+(* H A Z *)
 feynruleMap[{{HH, None, p1}, {AA, LI[i[1]], p2}, {Zb, LI[i[2]], p3}}] =
   I ee g[LI[i[1]], LI[i[2]]] *
     MW (1/(sw cw^2)) (1/2 dZZA);
 
-(* phi^+ W^- A   and charge conjugates  (S V V form: i e g_mn C)         *)
-(* C(phi W A) and C(phi W Z) carry no explicit +- dependence.            *)
+(* phi^+ W^- A *)
 feynruleMap[{{phi, None, p1}, {AA, LI[i[1]], p2}, {Wm, LI[i[2]], p3}}] =
   I ee g[LI[i[1]], LI[i[2]]] *
     ( -MW (1 + dZe + 1/2 dMW2/MW^2 - ee/(2 sw MH^2 MW) dtFJ
@@ -141,9 +94,7 @@ feynruleMap[{{phim, None, p1}, {Zb, LI[i[1]], p2}, {Wp, LI[i[2]], p3}}] =
 
 
 (* ===================================================================== *)
-(*  VECTOR - SCALAR - SCALAR   V S S :   i e C (k1-k2)_mu                 *)
-(*  k1 = momentum of first scalar (S1), k2 = momentum of second (S2),    *)
-(*  in the order they appear in the tex row.                             *)
+(*  VECTOR - SCALAR - SCALAR   V S S                                     *)
 (* ===================================================================== *)
 
 (* Z chi H   (S1=chi -> p1, S2=H -> p3) *)
@@ -184,7 +135,7 @@ feynruleMap[{{phim, None, p1}, {chi, None, p2}, {Wp, LI[i[1]], p3}}] =
 
 
 (* ===================================================================== *)
-(*  SCALAR SELF-COUPLING   S S S :   i e C                               *)
+(*  SCALAR SELF-COUPLING   S S S                                         *)
 (* ===================================================================== *)
 
 (* H H H *)
@@ -204,13 +155,9 @@ feynruleMap[{{HH, None, p1}, {phi, None, p2}, {phim, None, p3}}] =
 
 
 (* ===================================================================== *)
-(*  VECTOR - FERMION - FERMION   V Fbar F :                              *)
-(*       i e gamma_mu ( CL omega_- + CR omega_+ )                        *)
-(*  bar f_i = FI[i[2]] (= i),  f_j = FI[i[3]] (= j)                      *)
+(*  VECTOR - FERMION - FERMION   V Fbar F                                *)
 (* ===================================================================== *)
 
-(* --- photon : CL,CR = -Q_f[ delta_ij(1+dZe+1/2 dZAA) + 1/2(dZL+dZL^d) ] *)
-(*              + delta_ij g_f^-+ (1/2 dZZA)                              *)
 vffPhoton[f_, dZL_, dZR_] :=
   I ee (
     NC[ga[LI[i[1]]], PL] (
@@ -222,8 +169,6 @@ vffPhoton[f_, dZL_, dZR_] :=
             + 1/2 (dZR[FI[i[2]], FI[i[3]]] + Conjugate[dZR[FI[i[3]], FI[i[2]]]]) )
        + kd3[FI[i[2]], FI[i[3]]] gpf[f] (1/2 dZZA) ) );
 
-(* --- Z : CL,CR = g_f^-+ [ delta_ij(1+dg/g+1/2 dZZ) + 1/2(dZ+dZ^d) ]    *)
-(*               - delta_ij Q_f (1/2 dZAZ)                                *)
 vffZ[f_, dZL_, dZR_] :=
   I ee (
     NC[ga[LI[i[1]]], PL] (
@@ -257,8 +202,7 @@ feynruleMap[{{bar[nu], FI[i[2]], p1}, {nu, FI[i[3]], p2}, {Zb, LI[i[1]], p3}}] =
 
 
 (* ===================================================================== *)
-(*  CHARGED-CURRENT   W Fbar F :  i e gamma_mu ( CL omega_- + CR omega_+ ) *)
-(*  CR = 0 in all cases.                                                  *)
+(*  CHARGED-CURRENT   W Fbar F                                           *)
 (* ===================================================================== *)
 
 (* W^+ nubar_i l_j  (lepton, V -> delta) *)
@@ -291,14 +235,8 @@ feynruleMap[{{bar[dq], FI[i[2]], p1}, {uq, FI[i[3]], p2}, {Wm, LI[i[1]], p3}}] =
 
 
 (* ===================================================================== *)
-(*  SCALAR - FERMION - FERMION   S Fbar F :                              *)
-(*       i e ( CL omega_- + CR omega_+ )                                 *)
-(*  No Goldstone field-renorm CTs (unphysical fields).                   *)
+(*  SCALAR - FERMION - FERMION   S Fbar F                                *)
 (* ===================================================================== *)
-
-(* --- Higgs : CR = -1/(2 s MW)[ delta_ij m_i(...) + 1/2(m_i dZR + dZL^d m_j) ] *)
-(*             CL : R<->L.  (mass-CT symbol differs per fermion, so the    *)
-(*             three Higgs-fermion vertices are written out explicitly.)   *)
 
 (* H ebar e *)
 feynruleMap[{{bar[el], FI[i[2]], p1}, {el, FI[i[3]], p2}, {HH, None, p3}}] =
@@ -341,10 +279,6 @@ feynruleMap[{{bar[dq], FI[i[2]], p1}, {dq, FI[i[3]], p2}, {HH, None, p3}}] =
        + dMdiagd[FI[i[2]], FI[i[3]]]
        + 1/2 ( Mdiagd[FI[i[2]], FI[i[4]]] dZdR[FI[i[4]], FI[i[3]]]
              + Conjugate[dZdL[FI[i[4]], FI[i[2]]]] Mdiagd[FI[i[4]], FI[i[3]]] ) ) );
-
-(* --- chi : CR = +i/(2s) 2 I3_f /MW [ delta_ij m_i(...) + 1/2(m_i dZR+dZL^d m_j) ] *)
-(*           CL = -i/(2s) 2 I3_f /MW [ delta_ij m_i(...) + 1/2(m_i dZL+dZR^d m_j) ] *)
-(*  bracket: 1+dZe-dsw+dm_i/m_i-1/2 dMW2/MW2  (no dZH).                   *)
 
 (* chi ebar e *)
 feynruleMap[{{bar[el], FI[i[2]], p1}, {el, FI[i[3]], p2}, {chi, None, p3}}] =
@@ -443,9 +377,7 @@ feynruleMap[{{bar[el], FI[i[2]], p1}, {nu, FI[i[3]], p2}, {phim, None, p3}}] =
 
 
 (* ===================================================================== *)
-(*  QUARTIC GAUGE   V V V V :                                            *)
-(*    i e^2 C [ 2 g_mn g_rs - g_ms g_nr - g_mr g_ns ]                    *)
-(*  index pairing follows the tex row (V1 V2 V3 V4 = mu nu rho sigma).   *)
+(*  QUARTIC GAUGE   V V V V                                              *)
 (* ===================================================================== *)
 
 (* W+ W+ W- W- : (mu,nu,rho,sigma)=(i1,i2,i3,i4) directly *)
@@ -482,7 +414,7 @@ feynruleMap[{{AA, LI[i[1]], p1}, {AA, LI[i[2]], p2}, {Wp, LI[i[3]], p3}, {Wm, LI
 
 
 (* ===================================================================== *)
-(*  QUARTIC SCALAR   S S S S :   i e^2 C                                 *)
+(*  QUARTIC SCALAR   S S S S                                             *)
 (* ===================================================================== *)
 
 (* shared bracket without the field-renorm piece *)
@@ -508,8 +440,7 @@ feynruleMap[{{phi, None, p1}, {phi, None, p2}, {phim, None, p3}, {phim, None, p4
 
 
 (* ===================================================================== *)
-(*  VECTOR VECTOR SCALAR SCALAR   V V S S :   i e^2 g_mn C               *)
-(*  (the two vector legs supply the metric indices)                      *)
+(*  VECTOR VECTOR SCALAR SCALAR   V V S S :                              *)
 (* ===================================================================== *)
 
 (* W+ W- H H *)
@@ -613,14 +544,7 @@ feynruleMap[{{chi, None, p1}, {phim, None, p2}, {Wp, LI[i[1]], p3}, {AA, LI[i[2]
 
 
 (* ===================================================================== *)
-(*  FADDEEV-POPOV GHOSTS                                                  *)
-(*                                                                        *)
-(*  V Ubar U :  i e C k1_mu ,  k1 = momentum of the ANTI-ghost (p1).      *)
-(*  S Ubar U :  i e C.                                                    *)
-(*                                                                        *)
-(*  Only same-type ghost pairs (ubar^a u^a) appear in the keys below;     *)
-(*  most are therefore zero (the nonzero W-ghost couplings mix ghost      *)
-(*  types and are not among these keys).                                  *)
+(*  FADDEEV-POPOV GHOSTS                                                 *)
 (* ===================================================================== *)
 
 (* --- V Ubar U : nonzero only for charged ghosts with A or Z --- *)
@@ -667,35 +591,16 @@ feynruleMap[{{ubm, None, p1}, {um, None, p2}, {phim, None, p3}}] = 0;
 
 (* ===================================================================== *)
 (*  PROPAGATORS                                                          *)
-(*                                                                       *)
-(*  General 't Hooft (R_xi) gauge, all propagators diagonal.             *)
-(*  Stored in `propagatorMap`, keyed in the same leg format as the       *)
-(*  vertices: {{F1,idx1,p1},{F2,idx2,p2}}, distinct momentum per leg and  *)
-(*  `None` where a field carries no index.  The line momentum is the     *)
-(*  leg-1 incoming momentum p1 (p1 = -p2 by momentum conservation);       *)
-(*  Sq[p1] = p1^2 (scalar invariant), eps = +0^+ (Feynman i*epsilon).       *)
-(*  Masses:  M_A = 0,  M_chi = Sqrt[xiZ] MZ,  M_phi = Sqrt[xiW] MW,      *)
-(*           M_{u^A} = 0, M_{u^Z} = Sqrt[xiZ] MZ, M_{u^pm} = Sqrt[xiW] MW.*)
-(*  xiA is the photon gauge parameter (introduced here for completeness). *)
 (* ===================================================================== *)
 
 DeclareRealParam[xiA, Subscript["\[Xi]", "A"]];
 
 ClearAll[propagatorMap];
 
-(* p1-slash from the line momentum p1 (contracted dummy Lorentz i[5]).    *)
-(* Sq[p1] is the SCALAR invariant p1^2 produced by the LagTools two-point  *)
-(* inversion; it must stay free of Lorentz indices, otherwise             *)
-(* extractIndices cannot descend through the negative power of the         *)
-(* propagator denominator (LagTools.wl:207 only handles positive integer   *)
-(* powers).  It is real and index-free.                                    *)
 p1slash := NC[ga[LI[i[5]]]] p1[LI[i[5]]];
 Sq /: Conjugate[Sq[x_]] := Sq[x];
 Format[Sq[x_]] := Superscript[x, 2];
 
-(* ---- gauge bosons :  V V  ------------------------------------------- *)
-(*   -i g_mn /(k^2 - M^2 + i eps)                                        *)
-(*   + i (1 - xi) k_m k_n / [ (k^2 - M^2 + i eps)(k^2 - xi M^2 + i eps) ] *)
 
 (* photon  (M_A = 0) *)
 propagatorMap[{{AA, LI[i[1]], p1}, {AA, LI[i[2]], p2}}] = (
@@ -723,42 +628,24 @@ propagatorMap[{{ubz, None, p1}, {uz, None, p2}}] = I/(Sq[p1] - xiZ MZ^2 + I eps)
 propagatorMap[{{ubp, None, p1}, {up, None, p2}}] = I/(Sq[p1] - xiW MW^2 + I eps);
 propagatorMap[{{ubm, None, p1}, {um, None, p2}}] = I/(Sq[p1] - xiW MW^2 + I eps);
 
-(* ---- fermions :  Fbar F  ------------------------------------------- *)
-(*   i delta_ij (k-slash + m_{f,i}) / (k^2 - m_{f,i}^2 + i eps),         *)
-(*   diagonal in flavour; numerator mass term is the diagonal matrix     *)
-(*   Mdiag_ij, the scalar denominator uses the line's flavour mass.      *)
-(*                                                                       *)
-(*   CAUTION -- FI canonicalization is INVALID for these entries.        *)
+(* ---- fermions :  Fbar F  -------------------------------------------- *)
+(*   CAUTION -- FI canonicalization is invalid for these entries.        *)
 (*   The denominator carries a flavour-indexed mass ml/mu/md[FI[i[2]]].  *)
-(*   The leg indices i[2],i[3] are OPEN (external), but the open index   *)
-(*   i[2] also appears once in the denominator mass, so the "appears     *)
-(*   twice => dummy" heuristic (dummyIndices, LagTools.wl) would          *)
-(*   misclassify i[2] as a contracted dummy and relabel it.  An indexed  *)
-(*   mass in a denominator is a scalar invariant that can be neither     *)
-(*   contracted nor FI-canonicalized.  When comparing these entries,     *)
-(*   restrict canonicalization to the safe index types, e.g.             *)
-(*       canonical[expr, {LI, GI}]                                       *)
-(*   which still canonicalizes the LI dummy i[5] in p1slash (numerator,  *)
-(*   safe) while skipping the FI fold.  There are no FI dummies to lose: *)
-(*   propagator leg indices are always open.                            *)
+
+(* the momentum p in the reference is p2 = -p1 *)
 propagatorMap[{{bar[el], FI[i[2]], p1}, {el, FI[i[3]], p2}}] =
-  I (kd3[FI[i[2]], FI[i[3]]] p1slash + Mdiagl[FI[i[2]], FI[i[3]]])/
+  I (-kd3[FI[i[2]], FI[i[3]]] p1slash + Mdiagl[FI[i[2]], FI[i[3]]])/
     (Sq[p1] - ml[FI[i[2]]]^2 + I eps);
 
 propagatorMap[{{bar[uq], FI[i[2]], p1}, {uq, FI[i[3]], p2}}] =
-  I (kd3[FI[i[2]], FI[i[3]]] p1slash + Mdiagu[FI[i[2]], FI[i[3]]])/
+  I (-kd3[FI[i[2]], FI[i[3]]] p1slash + Mdiagu[FI[i[2]], FI[i[3]]])/
     (Sq[p1] - mu[FI[i[2]]]^2 + I eps);
 
 propagatorMap[{{bar[dq], FI[i[2]], p1}, {dq, FI[i[3]], p2}}] =
-  I (kd3[FI[i[2]], FI[i[3]]] p1slash + Mdiagd[FI[i[2]], FI[i[3]]])/
+  I (-kd3[FI[i[2]], FI[i[3]]] p1slash + Mdiagd[FI[i[2]], FI[i[3]]])/
     (Sq[p1] - md[FI[i[2]]]^2 + I eps);
 
-(* Neutrino: massless and purely left-handed.  Its two-point function is    *)
-(* ~ gamma.p P_L, with no P_R partner, so the projector is irreducible and   *)
-(* the LagTools trace cannot evaluate it (emits a harmless First[PL]         *)
-(* message; see the diracTrace note in LagTools.wl).  Since P_R nu = 0 the   *)
-(* projector is redundant: the propagator is the projector-free i p-slash/p^2 *)
-(* below, equivalent to dropping P_L.  The computed-vs-reference comparison   *)
-(* for this single entry therefore does NOT agree automatically.             *)
-propagatorMap[{{bar[nu], FI[i[2]], p1}, {nu, FI[i[3]], p2}}] =
-  I kd3[FI[i[2]], FI[i[3]]] p1slash/(Sq[p1] + I eps);
+(* Neutrino is massless left-handed; P_L in propagator breaks the computation *)
+(* Solution would be to use PL nu = nu and drop the PL. not implemented       *)
+(*propagatorMap[{{bar[nu], FI[i[2]], p1}, {nu, FI[i[3]], p2}}] =
+  I kd3[FI[i[2]], FI[i[3]]] p1slash/(Sq[p1] + I eps);*)

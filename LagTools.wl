@@ -321,6 +321,9 @@ resolveIndexConflicts[expr1_, expr2_] :=
 (* Avoid With[] in upvalue rules — it interacts badly with NC's HoldAll *)
 resolvedE1[a_, b_] := resolveIndexConflicts[a, b][[1]];
 resolvedE2[a_, b_] := resolveIndexConflicts[a, b][[2]];
+(* Fast path: None carries no indices, so there is never a clash to resolve. *)
+resolvedE1[None, b_] := None;
+resolvedE2[None, b_] := b;
 
 (* --- Times and Power ----------------------------------------------- *)
 
@@ -448,9 +451,23 @@ renormMix[h1_, h2_, dZ11_, dZ12_, dZ21_, dZ22_] := {
 (* mirroring the same pattern used in d[mu_][HoldPattern[INS[a_]]].          *)
 fdiffINS[lg_, a_Plus]     := fdiffINS[lg, #] & /@ a;
 fdiffINS[{f_, xi_, p_}, HoldPattern[INS[x_]]] := INS[fdiffINS[{f, xi, p}, resolvedE2[xi, x]]];
-fdiffINS[lg_, c_ * x_]   := c fdiffINS[lg, x] /; STindepQ[c];
 fdiffINS[lg_, c_]         := 0 /; STindepQ[c];
-fdiffINS[lg_, Times[a_, b__]] := fdiffINS[lg, a] Times[b] + a fdiffINS[lg, Times[b]];
+(* Batch-handle Times: factor out all STindep constants at once, then apply  *)
+(* Leibniz only to field-dependent factors.                                  *)
+fdiffINS[lg : {f_, _, _}, t_Times] :=
+  If[FreeQ[t, f], 0,
+    With[{factors = List @@ t},
+      With[{mask = STindepQ /@ factors},
+        With[{cPart = Pick[factors, mask], fPart = Pick[factors, mask, False]},
+          (Times @@ cPart) *
+            Total @ Table[
+              fdiffINS[lg, fPart[[n]]] * (Times @@ Delete[fPart, n]),
+              {n, Length[fPart]}
+            ]
+        ]
+      ]
+    ]
+  ];
 fdiffINS[lg_, Power[b_, n_Integer?Positive]] := n b^(n - 1) fdiffINS[lg, b];
 
 (* functional differentiation of field derivatives with transition to         *)
@@ -478,58 +495,42 @@ fdiffINS[{f_, xi_, p_}, ch_NC] := With[{l = List @@ ch},
 (* anything independent of the leg field -> 0 *)
 fdiffINS[{f_, _, _}, x_] := 0 /; FreeQ[x, f];
 
-(* public API: wrap the expression in INS so dummy indices are tracked, then  *)
-(* dispatch to fdiffINS which resolves any clash with the leg index           *)
-fdiff[lg_, e_] := fdiffINS[lg, INS[e]];
+(* public API: select summands that contain the fields and wrap in INS to  *)
+(* resolve clash with the leg index           *)
+SumToList[e_] := If[Head[e] === Plus, List @@ e, {e}];
 
-(* ---- Feynman rules ---- *)
+fdiff[lg: {f_, _, _}, e_] :=
+  Total[fdiffINS[lg, INS[#]] & /@ Select[SumToList @ Expand @ e, ! FreeQ[#, f] &]];
+
+(* =================================================================== *)
+(*  Feynman rules                                                      *)
+(* =================================================================== *)
 (* differentiate wrt each leg in turn, then send the leftover fields to zero *)
-(*setZero[e_] := e /. x_ /; fieldQ[x] :> 0;*)
+
 setZero[a_] /; FreeQ[a, _?fieldQ] := a;
 setZero[a_?fieldQ] := 0;
 setZero[ElectricCharge[x_]] := ElectricCharge[x];
 setZero[e_] := Map[setZero, e];
 
 functionalD[L_, legs_] := Module[{e = Expand[L]},
-   Do[e = Expand[fdiff[lg, e]], {lg, legs}];
-   Expand[setZero[e]]];
+  (*fields = DeleteDuplicates[First /@ legs];*)
+  (* Pre-filter: a summand that lacks any leg field gives 0 after all diffs; *)
+  (* drop it immediately to avoid distributing INS over the full Lagrangian. *)
+  (*If[Head[e] === Plus,
+    e = Total @ Select[List @@ e, And @@ ((!FreeQ[e, #] &) /@ fields) &]
+  ];*)
+  Do[e = Expand[fdiff[lg, e]], {lg, legs}];
+  Expand[setZero[e]]];
 
-(* Diagonal mass matrices (Mdiagl/Mdiagu/Mdiagd) are expanded to their       *)
-(* kd3 * mass form by the model (ExplMassMat, defined in EWSMLagrangian.wl).  *)
-(* This stub is the load-order-safe default (identity): LagTools is usable    *)
-(* standalone, and the model's definition replaces this one when loaded.      *)
+(* Diagonal mass matrices expanded to kd3*mass form by model; load-order-save stub *)
 ExplMassMat[e_] := e;
-
-(* tree-level vertex:  i * delta^n S / delta phi... , contracted, Dirac- and    *)
-(* index-canonicalised.  ExplMassMat is the final step so that diagonal mass    *)
-(* matrices appear as kd3 * mass (needed by the fermion propagator inversion,   *)
-(* which factors the internal-index Kronecker delta out).                       *)
 RemoveINS[e_] := e //. {HoldPattern[INS[a_]] -> a};
+
 vertexFct[l_, legs_] := Expand[I recombineProjectors @ RemoveINS @ Expand @ FullSimplify @ canonical @ diracSimplify @ contract @ functionalD[RemoveINS@l, legs]];
 
 (* =================================================================== *)
-(*  Dirac trace (D = 4 spacetime dimensions)                            *)
+(*  Dirac trace for pure gamma chains (D = 4 spacetime dimensions)     *)
 (* =================================================================== *)
-(*  The trace handles pure gamma chains via the standard recursion (any   *)
-(*  even length; odd -> 0).  For every MASSIVE fermion the two-point       *)
-(*  function combines into projector-free form (p-slash + m): the P_L and  *)
-(*  P_R pieces of the kinetic term recombine via P_L + P_R = 1, so only    *)
-(*  bare gamma chains reach the trace.                                     *)
-(*                                                                         *)
-(*  EXCEPTION -- accepted, not fixed: a genuinely chiral (massless,        *)
-(*  left-handed) fermion -- here only the neutrino -- has a two-point      *)
-(*  function ~ gamma.p P_L with no P_R partner to recombine, so the P_L is *)
-(*  irreducible and reaches traceGammas, which emits a harmless            *)
-(*  First::normal ("First[PL]") message and leaves that trace unevaluated. *)
-(*  Physically P_R nu = 0, so the projector is redundant and the correct   *)
-(*  neutrino propagator is the projector-free i p-slash/p^2 (the reference *)
-(*  convention), obtained on paper by simply dropping P_L.  We do not      *)
-(*  reintroduce gamma5 / epsilon trace machinery for this single entry.    *)
-(*                                                                         *)
-(*  diracTrace is INS-aware: it commutes with the index namespace wrapper *)
-(*  (Tr[INS[x]] = INS[Tr[x]]), so a trace of an INS-resolved chain stays  *)
-(*  inside its namespace and, once the metric indices are contracted away,*)
-(*  the index-free coefficient collapses back out of INS on its own.      *)
 
 traceGammas[{}] := 4;
 traceGammas[lst_List] /; OddQ[Length[lst]] := 0;
@@ -539,67 +540,32 @@ traceGammas[lst_List] := Module[{m1 = First[lst], rest = Rest[lst]},
 
 diracTrace[e_]                          := traceDispatch @ Expand[e];
 traceDispatch[a_Plus]                   := traceDispatch /@ a;
-traceDispatch[HoldPattern[INS[a_]]]              := INS[diracTrace[a]];
+traceDispatch[HoldPattern[INS[a_]]]     := INS[diracTrace[a]];
 traceDispatch[c_?diracScalarQ * HoldPattern[INS[a_]]] := c INS[diracTrace[a]];
 traceDispatch[c_?diracScalarQ * ch_NC]  := c traceGammas[List @@ ch];
 traceDispatch[ch_NC]                    := traceGammas[List @@ ch];
-traceDispatch[c_?diracScalarQ]          := 4 c;          (* scalar * identity *)
+traceDispatch[c_?diracScalarQ]          := 4 c;       
 
 (* =================================================================== *)
-(*  Two-point-function inversion -> propagator                          *)
+(*  Two-point-function inversion                                       *)
 (* =================================================================== *)
-(*  invertTwoPoint[A, p, pSq, type] inverts the (matrix-valued) two-point *)
-(*  function A to the propagator B with  A B = 1  (fermion / scalar) or   *)
-(*  A^{mu nu} B_{nu rho} = delta^mu_rho (vector), following the           *)
-(*  projector-basis method:                                              *)
-(*                                                                        *)
-(*    fermion :  P_pm = 1/2 ( 1 +/- pslash / Sqrt[pSq] ),                 *)
-(*               A_pm = 1/2 Tr[P_pm A],   B = P_+/A_+ + P_-/A_- .          *)
-(*    vector  :  P1 = g - p p / pSq ,  P2 = p p / pSq ,                   *)
-(*               A_i = (P_i : A)/Tr[P_i] (Tr P1 = D-1 = 3, Tr P2 = 1),    *)
-(*               B = P1/A_1 + P2/A_2 .                                    *)
-(*                                                                        *)
-(*  p    : momentum symbol of the line.                                  *)
-(*  pSq  : the scalar invariant p^2 (kept index-free, like the           *)
-(*         propagatorMap denominators).                                  *)
-(*  type : "scalar" | "fermion" | "vector" (supplied by the caller).     *)
-(*  The scalar coefficients A_i are treated as commuting (valid when A    *)
-(*  is diagonal in any internal flavour/colour indices, as at tree level).*)
 
-(* contract, then map the contracted momentum invariant p_mu p^mu (an     *)
-(* indexed Power) onto the index-free scalar pSq used in the propagator   *)
-(* denominators.  The metric self-contraction g_{mu nu} g^{mu nu} = 4 is  *)
-(* handled by the general rule with the metric definitions.               *)
 momSqReduce[e_, p_, pSq_] := contract[Expand[e]] /. Power[p[LI[_]], 2] :> pSq;
 
-(* The fifth argument intIdx is the pair of OPEN internal (flavour / colour)  *)
-(* leg indices, e.g. {FI[i[2]], FI[i[3]]}, supplied by Propagator from the     *)
-(* legs.  It cannot be inferred reliably from A: a flavour-indexed mass        *)
-(* md[FI[i[2]]] re-uses an open leg index, defeating multiplicity heuristics.  *)
-(* Default: no internal structure (intIdx = {}).                              *)
 invertTwoPoint[A_, p_, pSq_, type_] := invertTwoPoint[A, p, pSq, type, {}];
 
 invertTwoPoint[A_, p_, pSq_, "scalar", _] := 1/momSqReduce[A, p, pSq];
 
 invertTwoPoint[A_, p_, pSq_, "fermion", intIdx_List] := Module[
    {delta, Adir, pslash, Pp, Pm, Aplus, Aminus},
-   (* The fermion two-point function is diagonal in any internal (flavour /  *)
-   (* colour) space: every term carries one Kronecker delta kd3[j,k] over    *)
-   (* the open leg indices (the mass term too, once Mdiag -> kd3*mass has     *)
-   (* been expanded by ExplMassMat).  A scalar reciprocal 1/A_jk is NOT the   *)
-   (* matrix inverse, so we factor the delta out, invert the remaining        *)
-   (* per-flavour Dirac-scalar object, and reattach the delta.               *)
+   (* factor out kronecker delta (flavour) *)
    delta = If[intIdx === {}, 1, kd3 @@ intIdx];
    Adir  = If[intIdx === {}, A, A //. (kd3 @@ intIdx -> 1)];
-   (* INS gives pslash's dummy a private name so it cannot collide with an  *)
-   (* index already in Adir; the clash is resolved when NC[P., Adir] is      *)
-   (* formed, and the contracted coefficients collapse back to plain scalars.*)
    pslash = INS[NC[ga[LI[i[1]]]] p[LI[i[1]]]];
    Pp = (1 + pslash / Sqrt[pSq]) / 2;
    Pm = (1 - pslash / Sqrt[pSq]) / 2;
    Aplus  = momSqReduce[diracTrace[NC[Pp, Adir]], p, pSq] / 2;
    Aminus = momSqReduce[diracTrace[NC[Pm, Adir]], p, pSq] / 2;
-   (* final commit of the index namespace, as feynmanRule does for vertices *)
    delta RemoveINS @ FullSimplify[Pp/Aplus + Pm/Aminus, pSq > 0]];
 
 invertTwoPoint[A_, p_, pSq_, "vector", _] := Module[
@@ -612,11 +578,8 @@ invertTwoPoint[A_, p_, pSq_, "vector", _] := Module[
    FullSimplify[P1/A1 + P2/A2, pSq > 0]];
 
 (* =================================================================== *)
-(*  Propagator: invert the two-point function                           *)
+(*  Propagator: negative inverse of the two-point function             *)
 (* =================================================================== *)
-(*  The field type of a leg {field, idx, mom} is read off the leg: a     *)
-(*  Lorentz (LI) index -> vector, a fermion field -> fermion, otherwise  *)
-(*  scalar (incl. ghosts, with index None).                              *)
 legFieldType[{f_, idx_, _}] := Which[
    fermionQ[f] || Head[f] === bar, "fermion",
    Head[idx] === LI,               "vector",
@@ -624,10 +587,6 @@ legFieldType[{f_, idx_, _}] := Which[
 
 Propagator::legtype = "The two legs carry different field types (`1`, `2`).";
 
-(*  Propagator[L, {{F1,idx1,p1}, {F2,idx2,p2}}]:  build the two-point      *)
-(*  function from L, impose momentum conservation p2 = -p1, and invert    *)
-(*  with line momentum p1.  Sq[p1] is the index-free scalar invariant     *)
-(*  p1^2 used in the denominators.                                        *)
 Propagator[l_, legs : {{_, _, _}, {_, _, _}}] := Module[
    {p1 = legs[[1, 3]], p2 = legs[[2, 3]], t1, t2, A, intIdx},
    t1 = legFieldType[legs[[1]]];
@@ -639,7 +598,7 @@ Propagator[l_, legs : {{_, _, _}, {_, _, _}}] := Module[
    (* carry no internal index (e.g. index None).                             *)
    intIdx = {legs[[1, 2]], legs[[2, 2]]};
    intIdx = If[MatchQ[intIdx, {(FI | GI)[_], (FI | GI)[_]}], intIdx, {}];
-   invertTwoPoint[A, p1, Sq[p1], t1, intIdx]];
+   -invertTwoPoint[A, p1, Sq[p1], t1, intIdx]];
 
 (* feynmanRule dispatches: two external legs -> propagator, else vertex. *)
 feynmanRule[l_, legs_] :=

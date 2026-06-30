@@ -316,19 +316,7 @@ gaugeTrafoRules = {
    Should be zero modulo total derivatives and use of e.o.m.              *)
 
 (* ====================================================================== *)
-(*  STEP 5 — GAUGE FIXING AND FADDEEV-POPOV GHOST LAGRANGIAN             *)
-(*                                                                        *)
-(*  Rxi gauge-fixing conditions  (DD eqs. 27-28):                        *)
-(*    C^A = d^mu A_mu                                                     *)
-(*    C^Z = d^mu Z_mu - MZ xi_Z chi                                      *)
-(*    C^+ = d^mu W^+_mu - i MW xi_W phi^+                                *)
-(*    C^- = d^mu W^-_mu + i MW xi_W phi^-                                *)
-(*  L_fix = -1/(2) (C^A)^2 - 1/2 (C^Z)^2 - C^+ C^-                     *)
-(*                                                                        *)
-(*  FP ghost Lagrangian:                                                  *)
-(*    L_FP = -ubar^a (delta C^a / delta theta^b) u^b                     *)
-(*  Derived automatically: compute delta C^a = C^a[F->F+deltaF] - C^a,   *)
-(*  substitute theta^b -> u^b, multiply by -ubar^a.                      *)
+(*  STEP 5 — GAUGE FIXING AND FADDEEV-POPOV GHOST LAGRANGIAN              *)
 (* ====================================================================== *)
 
 (* ---- Gauge-fixing conditions ---- *)
@@ -357,163 +345,14 @@ Lghost = Expand[
   - ubz ** (deltaCZ[i[1]]  /. toGhosts)
   - ubp ** (deltaCWp[i[1]] /. toGhosts)
   - ubm ** (deltaCWm[i[1]] /. toGhosts)
-];
+] /. paramSubs; (* replace v *)
 
 (* ====================================================================== *)
-(*  STEP 6 — FEYNMAN RULES (all EWSM tree-level vertices)                 *)
-(*                                                                        *)
-(*  feynmanRules["key"] = i * d^n S / d phi_1 ... d phi_n  in p-space.  *)
-(*  Momenta p1,p2,... flow INTO the vertex; i[n] are the Lorentz /       *)
-(*  flavor indices of the respective leg.                                 *)
-(*                                                                        *)
-(*  Usage in a notebook:                                                  *)
-(*    Get["path/to/EWSMLagrangian.wl"]                                    *)
-(*    feynmanRules["A-Wp-Wm"]    (*  AWW vertex  *)                      *)
-(*    Keys[feynmanRules]          (*  list all computed vertices  *)       *)
+(*  STEP 6 — total lagrangian                                            *)
 (* ====================================================================== *)
 
 Ltotal = (LClassFull // toPhysical // Expand // canonical // 
    RemoveINS) + Lghost + Lfix;
-
-feynmanRules = <||>;
-
-(* ---- 2-point: gauge bosons ------------------------------------------ *)
-feynmanRules["AA-AA"]    = feynmanRule[Ltotal, {{AA,  LI[i[1]], p1}, {AA,  LI[i[2]], p2}}];
-feynmanRules["Zb-Zb"]    = feynmanRule[Ltotal, {{Zb,  LI[i[1]], p1}, {Zb,  LI[i[2]], p2}}];
-feynmanRules["Wp-Wm"]    = feynmanRule[Ltotal, {{Wp,  LI[i[1]], p1}, {Wm,  LI[i[2]], p2}}];
-
-(* ---- 2-point: scalars ------------------------------------------------ *)
-feynmanRules["HH-HH"]    = feynmanRule[Ltotal, {{HH,  None, p1}, {HH,  None, p2}}];
-feynmanRules["chi-chi"]  = feynmanRule[Ltotal, {{chi, None, p1}, {chi, None, p2}}];
-feynmanRules["phi-phim"] = feynmanRule[Ltotal, {{phi, None, p1}, {phim,None, p2}}];
-
-(* ---- 2-point: fermions (flavor indices i[2],i[3] appear in result) --- *)
-feynmanRules["el-bar"]   = feynmanRule[Ltotal, {{bar[el], FI[i[2]], p1}, {el, FI[i[3]], p2}}];
-feynmanRules["nu-bar"]   = feynmanRule[Ltotal, {{bar[nu], FI[i[2]], p1}, {nu, FI[i[3]], p2}}];
-feynmanRules["uq-bar"]   = feynmanRule[Ltotal, {{bar[uq], FI[i[2]], p1}, {uq, FI[i[3]], p2}}];
-feynmanRules["dq-bar"]   = feynmanRule[Ltotal, {{bar[dq], FI[i[2]], p1}, {dq, FI[i[3]], p2}}];
-
-(* ---- 2-point: ghosts ------------------------------------------------- *)
-feynmanRules["uba-ua"]   = feynmanRule[Ltotal, {{uba, None, p1}, {ua,  None, p2}}];
-feynmanRules["ubz-uz"]   = feynmanRule[Ltotal, {{ubz, None, p1}, {uz,  None, p2}}];
-feynmanRules["ubp-up"]   = feynmanRule[Ltotal, {{ubp, None, p1}, {up,  None, p2}}];
-feynmanRules["ubm-um"]   = feynmanRule[Ltotal, {{ubm, None, p1}, {um,  None, p2}}];
-
-(* ---- 3-point: triple gauge ------------------------------------------- *)
-feynmanRules["A-Wp-Wm"]  = feynmanRule[Ltotal, {{AA,  LI[i[1]], p1}, {Wp, LI[i[2]], p2}, {Wm, LI[i[3]], p3}}];
-feynmanRules["Z-Wp-Wm"]  = feynmanRule[Ltotal, {{Zb,  LI[i[1]], p1}, {Wp, LI[i[2]], p2}, {Wm, LI[i[3]], p3}}];
-
-(* ---- 3-point: Higgs – massive gauge ---------------------------------- *)
-feynmanRules["H-Wp-Wm"]  = feynmanRule[Ltotal, {{HH,  None, p1}, {Wp, LI[i[1]], p2}, {Wm, LI[i[2]], p3}}];
-feynmanRules["H-Z-Z"]    = feynmanRule[Ltotal, {{HH,  None, p1}, {Zb, LI[i[1]], p2}, {Zb, LI[i[2]], p3}}];
-feynmanRules["H-A-Z"]    = feynmanRule[Ltotal, {{HH,  None, p1}, {AA, LI[i[1]], p2}, {Zb, LI[i[2]], p3}}];
-
-(* ---- 3-point: Goldstone – gauge -------------------------------------- *)
-feynmanRules["chi-Z-H"]     = feynmanRule[Ltotal, {{chi,  None,      p1}, {Zb, LI[i[1]], p2}, {HH,  None,       p3}}];
-feynmanRules["phi-A-Wm"]    = feynmanRule[Ltotal, {{phi,  None,      p1}, {AA, LI[i[1]], p2}, {Wm,  LI[i[2]],   p3}}];
-feynmanRules["phi-Z-Wm"]    = feynmanRule[Ltotal, {{phi,  None,      p1}, {Zb, LI[i[1]], p2}, {Wm,  LI[i[2]],   p3}}];
-feynmanRules["phim-A-Wp"]   = feynmanRule[Ltotal, {{phim, None,      p1}, {AA, LI[i[1]], p2}, {Wp,  LI[i[2]],   p3}}];
-feynmanRules["phim-Z-Wp"]   = feynmanRule[Ltotal, {{phim, None,      p1}, {Zb, LI[i[1]], p2}, {Wp,  LI[i[2]],   p3}}];
-feynmanRules["phi-H-Wm"]    = feynmanRule[Ltotal, {{phi,  None,      p1}, {HH, None,       p2}, {Wm,  LI[i[1]], p3}}];
-feynmanRules["phim-H-Wp"]   = feynmanRule[Ltotal, {{phim, None,      p1}, {HH, None,       p2}, {Wp,  LI[i[1]], p3}}];
-feynmanRules["phi-chi-Wm"]  = feynmanRule[Ltotal, {{phi,  None,      p1}, {chi,None,       p2}, {Wm,  LI[i[1]], p3}}];
-feynmanRules["phim-chi-Wp"] = feynmanRule[Ltotal, {{phim, None,      p1}, {chi,None,       p2}, {Wp,  LI[i[1]], p3}}];
-feynmanRules["phi-phim-A"]  = feynmanRule[Ltotal, {{phi,  None,      p1}, {phim,None,      p2}, {AA,  LI[i[1]], p3}}];
-feynmanRules["phi-phim-Z"]  = feynmanRule[Ltotal, {{phi,  None,      p1}, {phim,None,      p2}, {Zb,  LI[i[1]], p3}}];
-
-(* ---- 3-point: Higgs self-coupling ------------------------------------ *)
-feynmanRules["H-H-H"]       = feynmanRule[Ltotal, {{HH,  None, p1}, {HH,  None, p2}, {HH,  None, p3}}];
-feynmanRules["H-chi-chi"]   = feynmanRule[Ltotal, {{HH,  None, p1}, {chi, None, p2}, {chi, None, p3}}];
-feynmanRules["H-phi-phim"]  = feynmanRule[Ltotal, {{HH,  None, p1}, {phi, None, p2}, {phim,None, p3}}];
-
-(* ---- 3-point: fermion – gauge --------------------------------------- *)
-feynmanRules["el-bar-A"]     = feynmanRule[Ltotal, {{bar[el], FI[i[2]], p1}, {el, FI[i[3]], p2}, {AA, LI[i[1]], p3}}];
-feynmanRules["el-bar-Z"]     = feynmanRule[Ltotal, {{bar[el], FI[i[2]], p1}, {el, FI[i[3]], p2}, {Zb, LI[i[1]], p3}}];
-feynmanRules["nu-bar-Z"]     = feynmanRule[Ltotal, {{bar[nu], FI[i[2]], p1}, {nu, FI[i[3]], p2}, {Zb, LI[i[1]], p3}}];
-feynmanRules["nubar-el-Wp"]  = feynmanRule[Ltotal, {{bar[nu], FI[i[2]], p1}, {el, FI[i[3]], p2}, {Wp, LI[i[1]], p3}}];
-feynmanRules["elbar-nu-Wm"]  = feynmanRule[Ltotal, {{bar[el], FI[i[2]], p1}, {nu, FI[i[3]], p2}, {Wm, LI[i[1]], p3}}];
-feynmanRules["uq-bar-A"]     = feynmanRule[Ltotal, {{bar[uq], FI[i[2]], p1}, {uq, FI[i[3]], p2}, {AA, LI[i[1]], p3}}];
-feynmanRules["uq-bar-Z"]     = feynmanRule[Ltotal, {{bar[uq], FI[i[2]], p1}, {uq, FI[i[3]], p2}, {Zb, LI[i[1]], p3}}];
-feynmanRules["dq-bar-Z"]     = feynmanRule[Ltotal, {{bar[dq], FI[i[2]], p1}, {dq, FI[i[3]], p2}, {Zb, LI[i[1]], p3}}];
-feynmanRules["uqbar-dq-Wp"]  = feynmanRule[Ltotal, {{bar[uq], FI[i[2]], p1}, {dq, FI[i[3]], p2}, {Wp, LI[i[1]], p3}}];
-feynmanRules["dqbar-uq-Wm"]  = feynmanRule[Ltotal, {{bar[dq], FI[i[2]], p1}, {uq, FI[i[3]], p2}, {Wm, LI[i[1]], p3}}];
-
-(* ---- 3-point: fermion – Yukawa (H, chi, Goldstones) ----------------- *)
-feynmanRules["el-bar-H"]      = feynmanRule[Ltotal, {{bar[el], FI[i[2]], p1}, {el, FI[i[3]], p2}, {HH,  None, p3}}];
-feynmanRules["uq-bar-H"]      = feynmanRule[Ltotal, {{bar[uq], FI[i[2]], p1}, {uq, FI[i[3]], p2}, {HH,  None, p3}}];
-feynmanRules["dq-bar-H"]      = feynmanRule[Ltotal, {{bar[dq], FI[i[2]], p1}, {dq, FI[i[3]], p2}, {HH,  None, p3}}];
-feynmanRules["el-bar-chi"]    = feynmanRule[Ltotal, {{bar[el], FI[i[2]], p1}, {el, FI[i[3]], p2}, {chi, None, p3}}];
-feynmanRules["uq-bar-chi"]    = feynmanRule[Ltotal, {{bar[uq], FI[i[2]], p1}, {uq, FI[i[3]], p2}, {chi, None, p3}}];
-feynmanRules["dq-bar-chi"]    = feynmanRule[Ltotal, {{bar[dq], FI[i[2]], p1}, {dq, FI[i[3]], p2}, {chi, None, p3}}];
-feynmanRules["nubar-el-phi"]  = feynmanRule[Ltotal, {{bar[nu], FI[i[2]], p1}, {el, FI[i[3]], p2}, {phi, None, p3}}];
-feynmanRules["elbar-nu-phim"] = feynmanRule[Ltotal, {{bar[el], FI[i[2]], p1}, {nu, FI[i[3]], p2}, {phim,None, p3}}];
-feynmanRules["uqbar-dq-phi"]  = feynmanRule[Ltotal, {{bar[uq], FI[i[2]], p1}, {dq, FI[i[3]], p2}, {phi, None, p3}}];
-feynmanRules["dqbar-uq-phim"] = feynmanRule[Ltotal, {{bar[dq], FI[i[2]], p1}, {uq, FI[i[3]], p2}, {phim,None, p3}}];
-
-(* ---- 3-point: ghost – gauge / ghost – scalar ------------------------- *)
-feynmanRules["uba-ua-A"]    = feynmanRule[Ltotal, {{uba, None, p1}, {ua,  None, p2}, {AA,  LI[i[1]], p3}}];
-feynmanRules["uba-ua-Z"]    = feynmanRule[Ltotal, {{uba, None, p1}, {ua,  None, p2}, {Zb,  LI[i[1]], p3}}];
-feynmanRules["uba-ua-Wp"]   = feynmanRule[Ltotal, {{uba, None, p1}, {ua,  None, p2}, {Wp,  LI[i[1]], p3}}];
-feynmanRules["uba-ua-Wm"]   = feynmanRule[Ltotal, {{uba, None, p1}, {ua,  None, p2}, {Wm,  LI[i[1]], p3}}];
-feynmanRules["ubz-uz-A"]    = feynmanRule[Ltotal, {{ubz, None, p1}, {uz,  None, p2}, {AA,  LI[i[1]], p3}}];
-feynmanRules["ubz-uz-Z"]    = feynmanRule[Ltotal, {{ubz, None, p1}, {uz,  None, p2}, {Zb,  LI[i[1]], p3}}];
-feynmanRules["ubz-uz-Wp"]   = feynmanRule[Ltotal, {{ubz, None, p1}, {uz,  None, p2}, {Wp,  LI[i[1]], p3}}];
-feynmanRules["ubz-uz-Wm"]   = feynmanRule[Ltotal, {{ubz, None, p1}, {uz,  None, p2}, {Wm,  LI[i[1]], p3}}];
-feynmanRules["ubz-uz-H"]    = feynmanRule[Ltotal, {{ubz, None, p1}, {uz,  None, p2}, {HH,  None, p3}}];
-feynmanRules["ubz-uz-chi"]  = feynmanRule[Ltotal, {{ubz, None, p1}, {uz,  None, p2}, {chi, None, p3}}];
-feynmanRules["ubp-up-A"]    = feynmanRule[Ltotal, {{ubp, None, p1}, {up,  None, p2}, {AA,  LI[i[1]], p3}}];
-feynmanRules["ubp-up-Z"]    = feynmanRule[Ltotal, {{ubp, None, p1}, {up,  None, p2}, {Zb,  LI[i[1]], p3}}];
-feynmanRules["ubp-up-Wp"]   = feynmanRule[Ltotal, {{ubp, None, p1}, {up,  None, p2}, {Wp,  LI[i[1]], p3}}];
-feynmanRules["ubp-up-Wm"]   = feynmanRule[Ltotal, {{ubp, None, p1}, {up,  None, p2}, {Wm,  LI[i[1]], p3}}];
-feynmanRules["ubp-up-H"]    = feynmanRule[Ltotal, {{ubp, None, p1}, {up,  None, p2}, {HH,  None, p3}}];
-feynmanRules["ubp-up-phi"]  = feynmanRule[Ltotal, {{ubp, None, p1}, {up,  None, p2}, {phi, None, p3}}];
-feynmanRules["ubp-up-phim"] = feynmanRule[Ltotal, {{ubp, None, p1}, {up,  None, p2}, {phim,None, p3}}];
-feynmanRules["ubm-um-A"]    = feynmanRule[Ltotal, {{ubm, None, p1}, {um,  None, p2}, {AA,  LI[i[1]], p3}}];
-feynmanRules["ubm-um-Z"]    = feynmanRule[Ltotal, {{ubm, None, p1}, {um,  None, p2}, {Zb,  LI[i[1]], p3}}];
-feynmanRules["ubm-um-Wp"]   = feynmanRule[Ltotal, {{ubm, None, p1}, {um,  None, p2}, {Wp,  LI[i[1]], p3}}];
-feynmanRules["ubm-um-Wm"]   = feynmanRule[Ltotal, {{ubm, None, p1}, {um,  None, p2}, {Wm,  LI[i[1]], p3}}];
-feynmanRules["ubm-um-H"]    = feynmanRule[Ltotal, {{ubm, None, p1}, {um,  None, p2}, {HH,  None, p3}}];
-feynmanRules["ubm-um-phi"]  = feynmanRule[Ltotal, {{ubm, None, p1}, {um,  None, p2}, {phi, None, p3}}];
-feynmanRules["ubm-um-phim"] = feynmanRule[Ltotal, {{ubm, None, p1}, {um,  None, p2}, {phim,None, p3}}];
-
-(* ---- 4-point: quartic gauge ----------------------------------------- *)
-feynmanRules["A-A-Wp-Wm"]     = feynmanRule[Ltotal, {{AA,  LI[i[1]], p1}, {AA,  LI[i[2]], p2}, {Wp, LI[i[3]], p3}, {Wm, LI[i[4]], p4}}];
-feynmanRules["A-Z-Wp-Wm"]     = feynmanRule[Ltotal, {{AA,  LI[i[1]], p1}, {Zb,  LI[i[2]], p2}, {Wp, LI[i[3]], p3}, {Wm, LI[i[4]], p4}}];
-feynmanRules["Z-Z-Wp-Wm"]     = feynmanRule[Ltotal, {{Zb,  LI[i[1]], p1}, {Zb,  LI[i[2]], p2}, {Wp, LI[i[3]], p3}, {Wm, LI[i[4]], p4}}];
-feynmanRules["Wp-Wp-Wm-Wm"]   = feynmanRule[Ltotal, {{Wp,  LI[i[1]], p1}, {Wp,  LI[i[2]], p2}, {Wm, LI[i[3]], p3}, {Wm, LI[i[4]], p4}}];
-
-(* ---- 4-point: Higgs self-coupling ------------------------------------ *)
-feynmanRules["H-H-H-H"]          = feynmanRule[Ltotal, {{HH,  None, p1}, {HH,  None, p2}, {HH,  None, p3}, {HH,  None, p4}}];
-feynmanRules["H-H-chi-chi"]      = feynmanRule[Ltotal, {{HH,  None, p1}, {HH,  None, p2}, {chi, None, p3}, {chi, None, p4}}];
-feynmanRules["H-H-phi-phim"]     = feynmanRule[Ltotal, {{HH,  None, p1}, {HH,  None, p2}, {phi, None, p3}, {phim,None, p4}}];
-feynmanRules["chi-chi-chi-chi"]  = feynmanRule[Ltotal, {{chi, None, p1}, {chi, None, p2}, {chi, None, p3}, {chi, None, p4}}];
-feynmanRules["chi-chi-phi-phim"] = feynmanRule[Ltotal, {{chi, None, p1}, {chi, None, p2}, {phi, None, p3}, {phim,None, p4}}];
-feynmanRules["phi-phi-phim-phim"]= feynmanRule[Ltotal, {{phi, None, p1}, {phi, None, p2}, {phim,None, p3}, {phim,None, p4}}];
-
-(* ---- 4-point: Higgs – gauge ----------------------------------------- *)
-feynmanRules["H-H-Wp-Wm"]       = feynmanRule[Ltotal, {{HH,  None, p1}, {HH,  None, p2}, {Wp, LI[i[1]], p3}, {Wm, LI[i[2]], p4}}];
-feynmanRules["H-H-Z-Z"]         = feynmanRule[Ltotal, {{HH,  None, p1}, {HH,  None, p2}, {Zb, LI[i[1]], p3}, {Zb, LI[i[2]], p4}}];
-feynmanRules["H-H-A-A"]         = feynmanRule[Ltotal, {{HH,  None, p1}, {HH,  None, p2}, {AA, LI[i[1]], p3}, {AA, LI[i[2]], p4}}];
-feynmanRules["H-H-A-Z"]         = feynmanRule[Ltotal, {{HH,  None, p1}, {HH,  None, p2}, {AA, LI[i[1]], p3}, {Zb, LI[i[2]], p4}}];
-feynmanRules["chi-chi-Wp-Wm"]   = feynmanRule[Ltotal, {{chi, None, p1}, {chi, None, p2}, {Wp, LI[i[1]], p3}, {Wm, LI[i[2]], p4}}];
-feynmanRules["chi-chi-Z-Z"]     = feynmanRule[Ltotal, {{chi, None, p1}, {chi, None, p2}, {Zb, LI[i[1]], p3}, {Zb, LI[i[2]], p4}}];
-feynmanRules["chi-chi-A-A"]     = feynmanRule[Ltotal, {{chi, None, p1}, {chi, None, p2}, {AA, LI[i[1]], p3}, {AA, LI[i[2]], p4}}];
-feynmanRules["phi-phim-Wp-Wm"]  = feynmanRule[Ltotal, {{phi, None, p1}, {phim,None, p2}, {Wp, LI[i[1]], p3}, {Wm, LI[i[2]], p4}}];
-feynmanRules["phi-phim-Z-Z"]    = feynmanRule[Ltotal, {{phi, None, p1}, {phim,None, p2}, {Zb, LI[i[1]], p3}, {Zb, LI[i[2]], p4}}];
-feynmanRules["phi-phim-A-A"]    = feynmanRule[Ltotal, {{phi, None, p1}, {phim,None, p2}, {AA, LI[i[1]], p3}, {AA, LI[i[2]], p4}}];
-feynmanRules["phi-phim-A-Z"]    = feynmanRule[Ltotal, {{phi, None, p1}, {phim,None, p2}, {AA, LI[i[1]], p3}, {Zb, LI[i[2]], p4}}];
-feynmanRules["phi-phi-Wm-Wm"]   = feynmanRule[Ltotal, {{phi, None, p1}, {phi, None, p2}, {Wm, LI[i[1]], p3}, {Wm, LI[i[2]], p4}}];
-feynmanRules["phim-phim-Wp-Wp"] = feynmanRule[Ltotal, {{phim,None, p1}, {phim,None, p2}, {Wp, LI[i[1]], p3}, {Wp, LI[i[2]], p4}}];
-feynmanRules["H-chi-Wp-Wm"]     = feynmanRule[Ltotal, {{HH,  None, p1}, {chi, None, p2}, {Wp, LI[i[1]], p3}, {Wm, LI[i[2]], p4}}];
-feynmanRules["H-chi-A-Z"]       = feynmanRule[Ltotal, {{HH,  None, p1}, {chi, None, p2}, {AA, LI[i[1]], p3}, {Zb, LI[i[2]], p4}}];
-feynmanRules["H-phi-Wm-Z"]      = feynmanRule[Ltotal, {{HH,  None, p1}, {phi, None, p2}, {Wm, LI[i[1]], p3}, {Zb, LI[i[2]], p4}}];
-feynmanRules["H-phim-Wp-Z"]     = feynmanRule[Ltotal, {{HH,  None, p1}, {phim,None, p2}, {Wp, LI[i[1]], p3}, {Zb, LI[i[2]], p4}}];
-feynmanRules["H-phi-Wm-A"]      = feynmanRule[Ltotal, {{HH,  None, p1}, {phi, None, p2}, {Wm, LI[i[1]], p3}, {AA, LI[i[2]], p4}}];
-feynmanRules["H-phim-Wp-A"]     = feynmanRule[Ltotal, {{HH,  None, p1}, {phim,None, p2}, {Wp, LI[i[1]], p3}, {AA, LI[i[2]], p4}}];
-feynmanRules["chi-phi-Wm-Z"]    = feynmanRule[Ltotal, {{chi, None, p1}, {phi, None, p2}, {Wm, LI[i[1]], p3}, {Zb, LI[i[2]], p4}}];
-feynmanRules["chi-phim-Wp-Z"]   = feynmanRule[Ltotal, {{chi, None, p1}, {phim,None, p2}, {Wp, LI[i[1]], p3}, {Zb, LI[i[2]], p4}}];
-feynmanRules["chi-phi-Wm-A"]    = feynmanRule[Ltotal, {{chi, None, p1}, {phi, None, p2}, {Wm, LI[i[1]], p3}, {AA, LI[i[2]], p4}}];
-feynmanRules["chi-phim-Wp-A"]   = feynmanRule[Ltotal, {{chi, None, p1}, {phim,None, p2}, {Wp, LI[i[1]], p3}, {AA, LI[i[2]], p4}}];
 
 (* ====================================================================== *)
 (*  RENORMALIZATION  (OS scheme, DD Sect. 3.1)                            *)
@@ -537,24 +376,24 @@ MakeBoxes[dMZ2,  StandardForm] := SuperscriptBox[SubscriptBox["\[Delta]M", "Z"],
 MakeBoxes[dMH2,  StandardForm] := SuperscriptBox[SubscriptBox["\[Delta]M", "H"], "2"];
 Protect[MakeBoxes];
 renormFields = Flatten[{
-  renormBoson[Wp,   dZW],
-  renormBoson[Wm,   dZW],
-  renormMix[Zb, AA, dZZZ, dZZA, dZAZ, dZAA],
-  renormBoson[HH,   dZH],
-  renormBoson[phi,  dZW],
-  renormBoson[phim, dZW],
-  renormBoson[chi,  dZZZ],
-  Table[renorm[nu[FI[i]], dZnuL/2, 0     ], {i,1,3}],
-  Table[renorm[el[FI[i]], dZeL/2,  dZeR/2], {i,1,3}],
-  Table[renorm[uq[FI[i]], dZuL/2,  dZuR/2], {i,1,3}],
-  Table[renorm[dq[FI[i]], dZdL/2,  dZdR/2], {i,1,3}]
+  renormBoson[Wp,   alpha dZW],
+  renormBoson[Wm,   alpha dZW],
+  renormMix[Zb, AA, alpha dZZZ, alpha dZZA, alpha dZAZ, alpha dZAA],
+  renormBoson[HH,   alpha dZH],
+  renormBoson[phi,  alpha dZW],
+  renormBoson[phim, alpha dZW],
+  renormBoson[chi,  alpha dZZZ],
+  Table[renorm[nu[FI[i]], alpha dZnuL/2, 0     ], {i,1,3}],
+  Table[renorm[el[FI[i]], alpha dZeL/2,  alpha dZeR/2], {i,1,3}],
+  Table[renorm[uq[FI[i]], alpha dZuL/2,  alpha dZuR/2], {i,1,3}],
+  Table[renorm[dq[FI[i]], alpha dZdL/2,  alpha dZdR/2], {i,1,3}]
 }];
 
 renormParams = {
-  ee   -> (1 + dZe) ee,
-  sw   -> sw (1 - (cw^2/(2 sw^2)) (dMW2/MW^2 - dMZ2/MZ^2)),
-  cw   -> cw (1 + (1/2)           (dMW2/MW^2 - dMZ2/MZ^2)),
-  MW^2 -> MW^2 + dMW2,
-  MZ^2 -> MZ^2 + dMZ2,
-  MH^2 -> MH^2 + dMH2
+  ee   -> (1 + alpha dZe) ee,
+  sw   -> sw (1 - (cw^2/(2 sw^2)) alpha (dMW2/MW^2 - dMZ2/MZ^2)),
+  cw   -> cw (1 + (1/2)           alpha (dMW2/MW^2 - dMZ2/MZ^2)),
+  MW^2 -> MW^2 + alpha dMW2,
+  MZ^2 -> MZ^2 + alpha dMZ2,
+  MH^2 -> MH^2 + alpha dMH2
 };

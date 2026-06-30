@@ -1031,7 +1031,7 @@ VerificationTest[
       L = I bar[el] ** ga[LI[i[1]]] ** d[LI[i[1]]][el] - mEl bar[el] ** el;
       B = feynmanRule[L, {{bar[el], None, q1}, {el, None, q2}}];
       {FreeQ[B, INS], FreeQ[B, traceDispatch],
-       Simplify[B - I (mEl - NC[ga[LI[i[1]]]] q1[LI[i[1]]])/(mEl^2 - Sq[q1])]}],
+       Simplify[B + I (mEl - NC[ga[LI[i[1]]]] q1[LI[i[1]]])/(mEl^2 - Sq[q1])]}],
    {True, True, 0},
    TestID -> "propagator-fermion-end-to-end"];
 
