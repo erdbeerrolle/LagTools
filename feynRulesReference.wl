@@ -753,6 +753,12 @@ propagatorMap[{{bar[dq], FI[i[2]], p1}, {dq, FI[i[3]], p2}}] =
   I (kd3[FI[i[2]], FI[i[3]]] p1slash + Mdiagd[FI[i[2]], FI[i[3]]])/
     (Sq[p1] - md[FI[i[2]]]^2 + I eps);
 
-(* neutrino is massless *)
+(* Neutrino: massless and purely left-handed.  Its two-point function is    *)
+(* ~ gamma.p P_L, with no P_R partner, so the projector is irreducible and   *)
+(* the LagTools trace cannot evaluate it (emits a harmless First[PL]         *)
+(* message; see the diracTrace note in LagTools.wl).  Since P_R nu = 0 the   *)
+(* projector is redundant: the propagator is the projector-free i p-slash/p^2 *)
+(* below, equivalent to dropping P_L.  The computed-vs-reference comparison   *)
+(* for this single entry therefore does NOT agree automatically.             *)
 propagatorMap[{{bar[nu], FI[i[2]], p1}, {nu, FI[i[3]], p2}}] =
   I kd3[FI[i[2]], FI[i[3]]] p1slash/(Sq[p1] + I eps);
