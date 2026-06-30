@@ -494,10 +494,18 @@ functionalD[L_, legs_] := Module[{e = Expand[L]},
    Do[e = Expand[fdiff[lg, e]], {lg, legs}];
    Expand[setZero[e]]];
 
+(* Diagonal mass matrices (Mdiagl/Mdiagu/Mdiagd) are expanded to their       *)
+(* kd3 * mass form by the model (ExplMassMat, defined in EWSMLagrangian.wl).  *)
+(* This stub is the load-order-safe default (identity): LagTools is usable    *)
+(* standalone, and the model's definition replaces this one when loaded.      *)
+ExplMassMat[e_] := e;
+
 (* tree-level vertex:  i * delta^n S / delta phi... , contracted, Dirac- and    *)
-(* index-canonicalised *)
+(* index-canonicalised.  ExplMassMat is the final step so that diagonal mass    *)
+(* matrices appear as kd3 * mass (needed by the fermion propagator inversion,   *)
+(* which factors the internal-index Kronecker delta out).                       *)
 RemoveINS[e_] := e //. {HoldPattern[INS[a_]] -> a};
-vertexFct[l_, legs_] := I recombineProjectors @ RemoveINS @ Expand @ FullSimplify @ canonical @ diracSimplify @ contract @ functionalD[RemoveINS@l, legs];
+vertexFct[l_, legs_] := Expand[I recombineProjectors @ RemoveINS @ Expand @ FullSimplify @ canonical @ diracSimplify @ contract @ functionalD[RemoveINS@l, legs]];
 
 (* =================================================================== *)
 (*  Dirac trace (D = 4 spacetime dimensions)                            *)
@@ -551,22 +559,37 @@ traceDispatch[c_?diracScalarQ]          := 4 c;          (* scalar * identity *)
 (* handled by the general rule with the metric definitions.               *)
 momSqReduce[e_, p_, pSq_] := contract[Expand[e]] /. Power[p[LI[_]], 2] :> pSq;
 
-invertTwoPoint[A_, p_, pSq_, "scalar"] := 1/A;
+(* The fifth argument intIdx is the pair of OPEN internal (flavour / colour)  *)
+(* leg indices, e.g. {FI[i[2]], FI[i[3]]}, supplied by Propagator from the     *)
+(* legs.  It cannot be inferred reliably from A: a flavour-indexed mass        *)
+(* md[FI[i[2]]] re-uses an open leg index, defeating multiplicity heuristics.  *)
+(* Default: no internal structure (intIdx = {}).                              *)
+invertTwoPoint[A_, p_, pSq_, type_] := invertTwoPoint[A, p, pSq, type, {}];
 
-invertTwoPoint[A_, p_, pSq_, "fermion"] := Module[
-   {pslash, Pp, Pm, Aplus, Aminus},
+invertTwoPoint[A_, p_, pSq_, "scalar", _] := 1/momSqReduce[A, p, pSq];
+
+invertTwoPoint[A_, p_, pSq_, "fermion", intIdx_List] := Module[
+   {delta, Adir, pslash, Pp, Pm, Aplus, Aminus},
+   (* The fermion two-point function is diagonal in any internal (flavour /  *)
+   (* colour) space: every term carries one Kronecker delta kd3[j,k] over    *)
+   (* the open leg indices (the mass term too, once Mdiag -> kd3*mass has     *)
+   (* been expanded by ExplMassMat).  A scalar reciprocal 1/A_jk is NOT the   *)
+   (* matrix inverse, so we factor the delta out, invert the remaining        *)
+   (* per-flavour Dirac-scalar object, and reattach the delta.               *)
+   delta = If[intIdx === {}, 1, kd3 @@ intIdx];
+   Adir  = If[intIdx === {}, A, A //. (kd3 @@ intIdx -> 1)];
    (* INS gives pslash's dummy a private name so it cannot collide with an  *)
-   (* index already in A; the clash is resolved when NC[P., A] is formed,    *)
-   (* and the fully-contracted coefficients collapse back to plain scalars.  *)
+   (* index already in Adir; the clash is resolved when NC[P., Adir] is      *)
+   (* formed, and the contracted coefficients collapse back to plain scalars.*)
    pslash = INS[NC[ga[LI[i[1]]]] p[LI[i[1]]]];
    Pp = (1 + pslash / Sqrt[pSq]) / 2;
    Pm = (1 - pslash / Sqrt[pSq]) / 2;
-   Aplus  = momSqReduce[diracTrace[NC[Pp, A]], p, pSq] / 2;
-   Aminus = momSqReduce[diracTrace[NC[Pm, A]], p, pSq] / 2;
+   Aplus  = momSqReduce[diracTrace[NC[Pp, Adir]], p, pSq] / 2;
+   Aminus = momSqReduce[diracTrace[NC[Pm, Adir]], p, pSq] / 2;
    (* final commit of the index namespace, as feynmanRule does for vertices *)
-   RemoveINS @ FullSimplify[Pp/Aplus + Pm/Aminus, pSq > 0]];
+   delta RemoveINS @ FullSimplify[Pp/Aplus + Pm/Aminus, pSq > 0]];
 
-invertTwoPoint[A_, p_, pSq_, "vector"] := Module[
+invertTwoPoint[A_, p_, pSq_, "vector", _] := Module[
    {mu, nu, P1, P2, A1, A2},
    {mu, nu} = openIndices[LI][A];
    P1 = g[mu, nu] - p[mu] p[nu] / pSq;
@@ -593,12 +616,17 @@ Propagator::legtype = "The two legs carry different field types (`1`, `2`).";
 (*  with line momentum p1.  Sq[p1] is the index-free scalar invariant     *)
 (*  p1^2 used in the denominators.                                        *)
 Propagator[l_, legs : {{_, _, _}, {_, _, _}}] := Module[
-   {p1 = legs[[1, 3]], p2 = legs[[2, 3]], t1, t2, A},
+   {p1 = legs[[1, 3]], p2 = legs[[2, 3]], t1, t2, A, intIdx},
    t1 = legFieldType[legs[[1]]];
    t2 = legFieldType[legs[[2]]];
    If[t1 =!= t2, Message[Propagator::legtype, t1, t2]; Return[$Failed]];
-   A = vertexFct[l, legs] /. p2[a___] :> -p1[a];   (* p2 = -p1 *)
-   invertTwoPoint[A, p1, Sq[p1], t1]];
+   A = (ExplMassMat @ vertexFct[l, legs]) /. p2[a___] :> -p1[a];   (* p2 = -p1 *)
+   (* the open internal (flavour/colour) leg indices, used by the fermion    *)
+   (* inversion to factor the diagonal Kronecker delta out; {} if the legs    *)
+   (* carry no internal index (e.g. index None).                             *)
+   intIdx = {legs[[1, 2]], legs[[2, 2]]};
+   intIdx = If[MatchQ[intIdx, {(FI | GI)[_], (FI | GI)[_]}], intIdx, {}];
+   invertTwoPoint[A, p1, Sq[p1], t1, intIdx]];
 
 (* feynmanRule dispatches: two external legs -> propagator, else vertex. *)
 feynmanRule[l_, legs_] :=

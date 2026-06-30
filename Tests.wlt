@@ -1041,3 +1041,16 @@ VerificationTest[
    $Failed,
    {Propagator::legtype},
    TestID -> "propagator-legtype-mismatch"];
+
+(* flavour-diagonal fermion two-point function: the open internal index pair  *)
+(* {FI[i[2]],FI[i[3]]} is factored out, the per-flavour Dirac scalar inverted, *)
+(* and the Kronecker delta reattached -> scalar denominator m_j^2 - Sq[p].     *)
+VerificationTest[
+   Module[{A, B},
+      A = kd3[FI[i[2]], FI[i[3]]] NC[ga[LI[i[5]]]] p[LI[i[5]]]
+          + kd3[FI[i[2]], FI[i[3]]] md[FI[i[2]]];
+      B = invertTwoPoint[A, p, Sq[p], "fermion", {FI[i[2]], FI[i[3]]}];
+      Simplify[B - kd3[FI[i[2]], FI[i[3]]] (md[FI[i[2]]] - NC[ga[LI[i[1]]]] p[LI[i[1]]])/
+         (md[FI[i[2]]]^2 - Sq[p])]],
+   0,
+   TestID -> "invert-fermion-flavour-diagonal"];
