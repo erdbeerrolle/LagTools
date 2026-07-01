@@ -417,28 +417,19 @@ recombineProjectors[e_] := Expand[e] //. {
    Plus[u___, c_. * PL, c_. * PR, v___] :> Plus[u, v, c]};
    
 (* ---- chiral field renormalisation ---- *)
-(*   psi -> (1+dZL) P_L psi + (1+dZR) P_R psi                                   *)
-(*   psibar -> (1+dZL) psibar P_R + (1+dZR) psibar P_L                           *)
-(* returns the substitution rules; apply with  L /. renorm[f, dZL, dZR] .       *)
-renorm[f_, zL_, zR_] := {
-   f -> (1 + zL) * NC[PL, f] + (1 + zR) NC[PR, f],
-   bar[f] ->   (1 + Conjugate[zL]) NC[bar[f], PR] + (1 + Conjugate[zR]) NC[bar[f], PL]};
+renormFlavor[f_, zLfn_, zRfn_] := Module[{a},
+  {
+    f[FI[i[a_]]] :> f[FI[i[a]]] +
+       INS[zLfn[FI[i[a]], FI[i[a+1]]] NC[PL, f[FI[i[a+1]]]] +
+           zRfn[FI[i[a]], FI[i[a+1]]] NC[PR, f[FI[i[a+1]]]]]
+  }];
 
 (* ---- boson field renormalisation ---- *)
-(*  Diagonal: h_0 = (1 + dZ/2) h                                                   *)
-(*  Returns two rules so both indexed  h[idx]  and bare scalar  h  are covered.    *)
-(*  The indexed rule  h[idx___] :> ...  fires first (more specific),               *)
-(*  so the bare rule never incorrectly replaces a head position.                   *)
-(*  Apply with  expr /. renormBoson[h, dZ]  or include in a Flatten[{...}] list.  *)
 renormBoson[h_, dZ_] := {
    h[idx___] :> (1 + dZ/2) h[idx],
    h          :> (1 + dZ/2) h};
 
-(*  2\[Times]2 mixing renormalisation: (h1_0, h2_0) = Z^{1/2} (h1, h2), where            *)
-(*     h1_0 = (1 + dZ11/2) h1 + (dZ12/2) h2                                       *)
-(*     h2_0 = (dZ21/2) h1 + (1 + dZ22/2) h2                                       *)
-(*  Typical use: renormMix[Zb, AA, dZZZ, dZZA, dZAZ, dZAA]                        *)
-(*  Rules applied simultaneously by /. so mixing on the RHS is NOT re-expanded.   *)
+(*  2\[Times]2 mixing renormalisation: *)
 renormMix[h1_, h2_, dZ11_, dZ12_, dZ21_, dZ22_] := {
    h1[idx___] :> (1 + dZ11/2) h1[idx] + (dZ12/2) h2[idx],
    h2[idx___] :> (dZ21/2) h1[idx] + (1 + dZ22/2) h2[idx],
@@ -532,7 +523,7 @@ functionalD[expr_, legs_] := Module[{fields, inds, terms, terms2,tot},
 ExplMassMat[e_] := e;
 RemoveINS[e_] := e //. {HoldPattern[INS[a_]] -> a};
 
-vertexFct[l_, legs_] := Expand[I recombineProjectors @ RemoveINS @ Expand @ FullSimplify @ canonical @ diracSimplify @ contract @ functionalD[RemoveINS@l, legs]];
+vertexFct[l_, legs_] := Expand[I (*recombineProjectors @*) RemoveINS @ Expand @ FullSimplify @ canonical @ diracSimplify @ contract @ functionalD[RemoveINS@l, legs]];
 
 (* =================================================================== *)
 (*  Dirac trace for pure gamma chains (D = 4 spacetime dimensions)     *)
@@ -598,7 +589,7 @@ Propagator[l_, legs : {{_, _, _}, {_, _, _}}] := Module[
    t1 = legFieldType[legs[[1]]];
    t2 = legFieldType[legs[[2]]];
    If[t1 =!= t2, Message[Propagator::legtype, t1, t2]; Return[$Failed]];
-   A = (ExplMassMat @ vertexFct[l, legs]) /. p2[a___] :> -p1[a];   (* p2 = -p1 *)
+   A = (ExplMassMat @ recombineProjectors @ vertexFct[l, legs]) /. p2[a___] :> -p1[a];   (* p2 = -p1 *)
    (* the open internal (flavour/colour) leg indices, used by the fermion    *)
    (* inversion to factor the diagonal Kronecker delta out; {} if the legs    *)
    (* carry no internal index (e.g. index None).                             *)

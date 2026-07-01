@@ -351,49 +351,64 @@ Lghost = Expand[
 (*  STEP 6 — total lagrangian                                            *)
 (* ====================================================================== *)
 
-Ltotal = (LClassFull // toPhysical // Expand // canonical // 
-   RemoveINS) + Lghost + Lfix;
+(* simplification of summands is needed to simplify stuff like Conjugate[1/Sqrt[1-cw^2]]*)
+Ltotal = Simplify/@((LClassFull // toPhysical // Expand // canonical // 
+   RemoveINS) + Lghost + Lfix);
 
 (* ====================================================================== *)
 (*  RENORMALIZATION  (OS scheme, DD Sect. 3.1)                            *)
 (* ====================================================================== *)
 
-Scan[(# /: Conjugate[#] := #) &, {
-  dZW, dZZZ, dZZA, dZAZ, dZAA, dZH,
-  dZeL, dZeR, dZnuL, dZuL, dZuR, dZdL, dZdR,
-  dZe, dMW2, dMZ2, dMH2
-}];
-Unprotect[MakeBoxes];
-MakeBoxes[dZW,   StandardForm] := SubscriptBox["\[Delta]Z", "W"];
-MakeBoxes[dZZZ,  StandardForm] := SubscriptBox["\[Delta]Z", "ZZ"];
-MakeBoxes[dZZA,  StandardForm] := SubscriptBox["\[Delta]Z", "Z\[Gamma]"];
-MakeBoxes[dZAZ,  StandardForm] := SubscriptBox["\[Delta]Z", "\[Gamma]Z"];
-MakeBoxes[dZAA,  StandardForm] := SubscriptBox["\[Delta]Z", "\[Gamma]\[Gamma]"];
-MakeBoxes[dZH,   StandardForm] := SubscriptBox["\[Delta]Z", "H"];
-MakeBoxes[dZe,   StandardForm] := SubscriptBox["\[Delta]Z", "e"];
-MakeBoxes[dMW2,  StandardForm] := SuperscriptBox[SubscriptBox["\[Delta]M", "W"], "2"];
-MakeBoxes[dMZ2,  StandardForm] := SuperscriptBox[SubscriptBox["\[Delta]M", "Z"], "2"];
-MakeBoxes[dMH2,  StandardForm] := SuperscriptBox[SubscriptBox["\[Delta]M", "H"], "2"];
-Protect[MakeBoxes];
+DeclareRealParam[dZW, Subscript["\[Delta]Z", "W"]];
+DeclareRealParam[dZZZ, Subscript["\[Delta]Z", "ZZ"]];
+DeclareRealParam[dZZA, Subscript["\[Delta]Z", "Z\[Gamma]"]];
+DeclareRealParam[dZAZ, Subscript["\[Delta]Z", "\[Gamma]Z"]];
+DeclareRealParam[dZAA, Subscript["\[Delta]Z", "\[Gamma]\[Gamma]"]];
+DeclareRealParam[dZH, Subscript["\[Delta]Z", "H"]];
+DeclareRealParam[dZe, Subscript["\[Delta]Z", "e"]];
+DeclareRealParam[dMW2, Subsuperscript["\[Delta]M", "W", "2"]];
+DeclareRealParam[dMZ2, Subsuperscript["\[Delta]M", "Z", "2"]];
+DeclareRealParam[dMH2, Subsuperscript["\[Delta]M", "H", "2"]];
+DeclareRealParam[dMdiagl, Subsuperscript["\[Delta]M", "l", "2"]];
+DeclareRealParam[dMdiagu, Subsuperscript["\[Delta]M", "u", "2"]];
+DeclareRealParam[dMdiagd, Subsuperscript["\[Delta]M", "d", "2"]];
+DeclareComplexParam[dZeL, Subsuperscript["\[Delta]Z", "e", "L"]];
+DeclareComplexParam[dZeR, Subsuperscript["\[Delta]Z", "e", "R"]];
+DeclareComplexParam[dZuL, Subsuperscript["\[Delta]Z", "u", "L"]];
+DeclareComplexParam[dZuR, Subsuperscript["\[Delta]Z", "u", "R"]];
+DeclareComplexParam[dZdL, Subsuperscript["\[Delta]Z", "d", "L"]];
+DeclareComplexParam[dZdR, Subsuperscript["\[Delta]Z", "d", "R"]];
+DeclareComplexParam[dZnuL, Subsuperscript["\[Delta]Z", "\[Nu]", "L"]];
+DeclareComplexParam[dZnuR, Subsuperscript["\[Delta]Z", "\[Nu]", "R"]];
+DeclareComplexParam[dV, "\[Delta]V"];
+
+(* ordering parameter for 1-loop expansion *)
+DeclareRealParam[alpha, "\[Alpha]"];
+
+SetAttributes[dMdiagl, Orderless];
+SetAttributes[dMdiagu, Orderless];
+SetAttributes[dMdiagd, Orderless];
+
 renormFields = Flatten[{
   renormBoson[Wp,   alpha dZW],
   renormBoson[Wm,   alpha dZW],
   renormMix[Zb, AA, alpha dZZZ, alpha dZZA, alpha dZAZ, alpha dZAA],
   renormBoson[HH,   alpha dZH],
-  renormBoson[phi,  alpha dZW],
-  renormBoson[phim, alpha dZW],
-  renormBoson[chi,  alpha dZZZ],
-  Table[renorm[nu[FI[i]], alpha dZnuL/2, 0     ], {i,1,3}],
-  Table[renorm[el[FI[i]], alpha dZeL/2,  alpha dZeR/2], {i,1,3}],
-  Table[renorm[uq[FI[i]], alpha dZuL/2,  alpha dZuR/2], {i,1,3}],
-  Table[renorm[dq[FI[i]], alpha dZdL/2,  alpha dZdR/2], {i,1,3}]
+  renormFlavor[nu, (alpha dZnuL[#1,#2]/2)&, (0 &)                  ],
+  renormFlavor[el, (alpha dZeL[#1,#2]/2)&,  (alpha dZeR[#1,#2]/2)& ],
+  renormFlavor[uq, (alpha dZuL[#1,#2]/2)&,  (alpha dZuR[#1,#2]/2)& ],
+  renormFlavor[dq, (alpha dZdL[#1,#2]/2)&,  (alpha dZdR[#1,#2]/2)& ]
 }];
 
 renormParams = {
   ee   -> (1 + alpha dZe) ee,
-  sw   -> sw (1 - (cw^2/(2 sw^2)) alpha (dMW2/MW^2 - dMZ2/MZ^2)),
-  cw   -> cw (1 + (1/2)           alpha (dMW2/MW^2 - dMZ2/MZ^2)),
-  MW^2 -> MW^2 + alpha dMW2,
-  MZ^2 -> MZ^2 + alpha dMZ2,
-  MH^2 -> MH^2 + alpha dMH2
+  (*sw   -> sw (1 - (cw^2/(2 sw^2)) alpha (dMW2/MW^2 - dMZ2/MZ^2)),*)
+  cw   -> cw (1 + (1/2) alpha (dMW2/MW^2 - dMZ2/MZ^2)),
+  MW -> MW + alpha dMW2 / (2 MW),
+  MZ -> MZ + alpha dMZ2 / (2 MZ),
+  MH -> MH + alpha dMH2 / (2 MH),
+  Mdiagl[FI[a_], FI[b_]] :> Mdiagl[FI[a], FI[b]] + alpha dMdiagl[FI[a], FI[b]],
+  Mdiagu[FI[a_], FI[b_]] :> Mdiagu[FI[a], FI[b]] + alpha dMdiagu[FI[a], FI[b]],
+  Mdiagd[FI[a_], FI[b_]] :> Mdiagd[FI[a], FI[b]] + alpha dMdiagd[FI[a], FI[b]],
+  V[FI[a_], FI[b_]] :> V[FI[a], FI[b]] + alpha dV[FI[a], FI[b]]
 };

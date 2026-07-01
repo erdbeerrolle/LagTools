@@ -8,7 +8,7 @@
 
 (* shorthand replacement rules for sw and cw counterterms *)
 expandSC = {
-  dsw -> -(cw^2/(2 sw^2)) (dMW2/MW^2 - dMZ2/MZ^2),   (* delta s / s *)
+  dsw -> -(cw^2/(2 sw^2)) (dMW2/MW^2 - dMZ2/MZ^2),    (* delta s / s *)
   dcw ->  (1/2)            (dMW2/MW^2 - dMZ2/MZ^2)    (* delta c / c *)
 };
 
@@ -20,13 +20,6 @@ gpf[f_] := -(sw/cw) ElectricCharge[f];
 gmf[f_] := (I3f[f] - sw^2 ElectricCharge[f])/(sw cw);
 dgpf[f_] := -(sw/cw) ElectricCharge[f] (dZe + (1/cw^2) dsw);
 dgmf[f_] := (I3f[f]/(sw cw)) (dZe + ((sw^2 - cw^2)/cw^2) dsw) + dgpf[f];
-
-(* Fermion masses appear through the diagonal mass matrices Mdiagl, Mdiagu, *)(* Mdiagd (defined in EWSMLagrangian.wl) in order to be able to use sum     *) 
-(* convention                                                               *)
-SetAttributes[dMdiagl, Orderless];
-SetAttributes[dMdiagu, Orderless];
-SetAttributes[dMdiagd, Orderless];
-Scan[(# /: Conjugate[#] := #) &, {dMdiagl, dMdiagu, dMdiagd}];
 
 ClearAll[feynruleMap];
 
