@@ -642,3 +642,121 @@ propagatorMap[{{bar[dq], FI[i[2]], p1}, {dq, FI[i[3]], p2}}] =
 (* Solution would be to use PL nu = nu and drop the PL. not implemented       *)
 (*propagatorMap[{{bar[nu], FI[i[2]], p1}, {nu, FI[i[3]], p2}}] =
   I kd3[FI[i[2]], FI[i[3]]] p1slash/(Sq[p1] + I eps);*)
+
+
+(* ===================================================================== *)
+(*  TWO-POINT COUNTERTERMS                                               *)
+(*  Transcribed from ewreview_appfr.tex, lines 264-356.                  *)
+(*                                                                       *)
+(*  Momentum convention (single external momentum k):                    *)
+(*   - bosonic legs use  k = p1  (as for the tree-level propagators);    *)
+(*   - fermionic legs use k = p2 = -p1 (as for the fermion propagator,   *)
+(*     hence the sign in front of p1slash below).                        *)
+(*  The generic tadpole dt of the review is written here as dtFJ (its    *)
+(*  value in the FJ tadpole scheme; it contributes in both schemes).     *)
+(* ===================================================================== *)
+
+(* ---- tadpole :  one-point Higgs vertex,  i dt --------------------- *)
+feynruleMap[{{HH, None, p1}}] = I dtFJ; (* not really dtFJ, this is universal -> introduce a third parameter? *)
+
+(* ---- V V counterterm :  i[(-g_mn k^2 + k_m k_n) C1 + g_mn C2] ------- *)
+
+(* W+ W- *)
+feynruleMap[{{Wp, LI[i[1]], p1}, {Wm, LI[i[2]], p2}}] =
+  I ( (-g[LI[i[1]], LI[i[2]]] Sq[p1] + p1[LI[i[1]]] p1[LI[i[2]]]) dZW
+      + g[LI[i[1]], LI[i[2]]] (dZW MW^2 + dMW2 - ee MW/(sw MH^2) dtFJ) );
+
+(* Z Z *)
+feynruleMap[{{Zb, LI[i[1]], p1}, {Zb, LI[i[2]], p2}}] =
+  I ( (-g[LI[i[1]], LI[i[2]]] Sq[p1] + p1[LI[i[1]]] p1[LI[i[2]]]) dZZZ
+      + g[LI[i[1]], LI[i[2]]] (dZZZ MZ^2 + dMZ2 - ee MZ/(sw cw MH^2) dtFJ) );
+
+(* A Z *)
+feynruleMap[{{AA, LI[i[1]], p1}, {Zb, LI[i[2]], p2}}] =
+  I ( (-g[LI[i[1]], LI[i[2]]] Sq[p1] + p1[LI[i[1]]] p1[LI[i[2]]]) (1/2 dZAZ + 1/2 dZZA)
+      + g[LI[i[1]], LI[i[2]]] (1/2 dZZA MZ^2) );
+
+(* A A *)
+feynruleMap[{{AA, LI[i[1]], p1}, {AA, LI[i[2]], p2}}] =
+  I ( (-g[LI[i[1]], LI[i[2]]] Sq[p1] + p1[LI[i[1]]] p1[LI[i[2]]]) dZAA );
+
+(* ---- V S counterterm :  i k_m C ------------------------------------ *)
+
+(* W+ phi- *)
+feynruleMap[{{Wp, LI[i[1]], p1}, {phim, None, p2}}] =
+  I p1[LI[i[1]]] (
+     +(1/2) (dZW + dMW2/MW^2 - ee/(sw MH^2 MW) dtFJ) MW );
+
+(* W- phi+ *)
+feynruleMap[{{Wm, LI[i[1]], p1}, {phi, None, p2}}] =
+  I p1[LI[i[1]]] (
+     -(1/2) (dZW + dMW2/MW^2 - ee/(sw MH^2 MW) dtFJ) MW );
+
+(* Z chi *)
+feynruleMap[{{Zb, LI[i[1]], p1}, {chi, None, p2}}] =
+  I p1[LI[i[1]]] (
+     I (1/2) (dZZZ + dMZ2/MZ^2 - ee/(sw MH^2 MW) dtFJ) MZ );
+
+(* A chi *)
+feynruleMap[{{AA, LI[i[1]], p1}, {chi, None, p2}}] =
+  I p1[LI[i[1]]] (
+     I (1/2) dZZA MZ );
+
+(* ---- S S counterterm :  i[C1 k^2 - C2] ----------------------------- *)
+
+(* H H *)
+feynruleMap[{{HH, None, p1}, {HH, None, p2}}] =
+  I ( dZH Sq[p1] - (dZH MH^2 + dMH2 - 3 ee/(2 sw MW) dtFJ) );
+
+(* chi chi *)
+feynruleMap[{{chi, None, p1}, {chi, None, p2}}] =
+  I ( - (- ee/(2 sw MW) dtFJ) );
+
+(* phi phi *)
+feynruleMap[{{phi, None, p1}, {phim, None, p2}}] =
+  I ( - (- ee/(2 sw MW) dtFJ) );
+
+(* ---- F Fbar counterterm : ------------------------------------------ *)
+(*   i[ CL k-slash w_- + CR k-slash w_+ - CS^- w_- - CS^+ w_+ ]          *)
+(*   with w_- = PL, w_+ = PR, and k = p2 = -p1 (fermion propagator       *)
+(*   convention), hence the leading minus on the k-slash terms.          *)
+
+ffbarCT[dZL_, dZR_, Mdiag_, dMdiag_] := Module[{cL, cR, cSm, cSp},
+  cL  = (1/2) (dZL[FI[i[2]], FI[i[3]]] + Conjugate[dZL[FI[i[3]], FI[i[2]]]]);
+  cR  = (1/2) (dZR[FI[i[2]], FI[i[3]]] + Conjugate[dZR[FI[i[3]], FI[i[2]]]]);
+  cSm = (1/2) ( Mdiag[FI[i[2]], FI[i[4]]] dZL[FI[i[4]], FI[i[3]]]
+              + Conjugate[dZR[FI[i[4]], FI[i[2]]]] Mdiag[FI[i[4]], FI[i[3]]] )
+        + dMdiag[FI[i[2]], FI[i[3]]]
+        - Mdiag[FI[i[2]], FI[i[3]]] ee/(2 sw MH^2 MW) dtFJ;
+  cSp = (1/2) ( Mdiag[FI[i[2]], FI[i[4]]] dZR[FI[i[4]], FI[i[3]]]
+              + Conjugate[dZL[FI[i[4]], FI[i[2]]]] Mdiag[FI[i[4]], FI[i[3]]] )
+        + dMdiag[FI[i[2]], FI[i[3]]]
+        - Mdiag[FI[i[2]], FI[i[3]]] ee/(2 sw MH^2 MW) dtFJ;
+  I ( - cL NC[ga[LI[i[5]]], PL] p1[LI[i[5]]]
+      - cR NC[ga[LI[i[5]]], PR] p1[LI[i[5]]]
+      - cSm NC[PL] - cSp NC[PR] )
+  ];
+
+(* e ebar *)
+feynruleMap[{{bar[el], FI[i[2]], p1}, {el, FI[i[3]], p2}}] =
+  ffbarCT[dZeL, dZeR, Mdiagl, dMdiagl];
+
+(* u ubar *)
+feynruleMap[{{bar[uq], FI[i[2]], p1}, {uq, FI[i[3]], p2}}] =
+  ffbarCT[dZuL, dZuR, Mdiagu, dMdiagu];
+
+(* d dbar *)
+feynruleMap[{{bar[dq], FI[i[2]], p1}, {dq, FI[i[3]], p2}}] =
+  ffbarCT[dZdL, dZdR, Mdiagd, dMdiagd];
+
+(* Neutrino two-point counterterm omitted, as for the neutrino propagator. *)
+
+
+(* ======================================================================= *)
+(* Helpers for Feynman rule comparison                                     *)
+(* ======================================================================= *)
+GetLegsLst[map_] := Module[{dv = DownValues[map]},
+   dv[[#, 1, 1, 1]] & /@ Range@Length@dv];
+
+feynRuleLegsLst = GetLegsLst[feynruleMap];
+propagatorLegsLst = GetLegsLst[propagatorMap];

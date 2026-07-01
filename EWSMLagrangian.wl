@@ -352,11 +352,12 @@ Lghost = Expand[
 (* ====================================================================== *)
 
 (* simplification of summands is needed to simplify stuff like Conjugate[1/Sqrt[1-cw^2]]*)
-Ltotal = Simplify/@((LClassFull // toPhysical // Expand // canonical // 
-   RemoveINS) + Lghost + Lfix);
+LClassPhys = Simplify/@(LClassFull // toPhysical // Expand // canonical // 
+   RemoveINS);
+Ltotal = LClassPhys + Lghost + Lfix;
 
 (* ====================================================================== *)
-(*  RENORMALIZATION  (OS scheme, DD Sect. 3.1)                            *)
+(*  RENORMALIZATION TRAFO (OS scheme, DD Sect. 3.1)                       *)
 (* ====================================================================== *)
 
 DeclareRealParam[dZW, Subscript["\[Delta]Z", "W"]];
@@ -412,3 +413,29 @@ renormParams = {
   Mdiagd[FI[a_], FI[b_]] :> Mdiagd[FI[a], FI[b]] + alpha dMdiagd[FI[a], FI[b]],
   V[FI[a_], FI[b_]] :> V[FI[a], FI[b]] + alpha dV[FI[a], FI[b]]
 };
+
+
+(* ======================================================================== *)
+(*  1-LOOP RENORMALIZED LAGRANGIAN                                          *)
+(* ======================================================================== *)
+
+(* perform renormalizatin with Hold around sums of neormalization constants *)
+
+fieldAndIdxFact[expr_] := 
+  Times @@ 
+   Select[List @@ expr, ! (FreeQ[#, _?fieldQ] && indexFreeQ[#]) &];
+SumGroupByValues[expr_] := 
+  Total /@ (GroupBy[SumToList[expr], fieldAndIdxFact] // Values);
+HoldFieldPrefacts[e_] := 
+  Module[{a}, 
+   Total[(Factor@SumGroupByValues@Expand@e) /. {a_Plus -> Hold[a]}]];
+renTermHold[e_] := Module[{ren, a},
+   ren = 
+    Series[e /. Join[renormFields, renormParams], {alpha, 0, 1}] // 
+     Normal;
+   HoldFieldPrefacts@ren];
+
+renormalize[e_] := diracSimplify@HoldFieldPrefacts@Total@(renTermHold /@ SumToList[e]);
+
+(* full 1-loop ren lag *)
+Lren = renormalize@LClassPhys + Lghost + Lfix
