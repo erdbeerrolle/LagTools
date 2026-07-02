@@ -244,28 +244,28 @@ VerificationTest[
 
 (* charged-current W vertex: purely left-handed — plain input *)
 VerificationTest[
-   feynmanRule[(gw/Sqrt[2]) (bar[nu] ** ga[LI[i[1]]] ** PL ** el) Wp[LI[i[1]]],
+   vertexFct[(gw/Sqrt[2]) (bar[nu] ** ga[LI[i[1]]] ** PL ** el) Wp[LI[i[1]]],
       {{Wp, LI[i[2]], k1}, {bar[nu], None, k2}, {el, None, k3}}],
    I (gw/Sqrt[2]) (ga[LI[i[2]]] ** PL),
    TestID -> "fr-W-vertex"];
 
 (* charged-current W vertex: INS-wrapped input gives INS-wrapped output *)
 VerificationTest[
-   feynmanRule[INS[(gw/Sqrt[2]) (bar[nu] ** ga[LI[i[1]]] ** PL ** el) Wp[LI[i[1]]]],
+   vertexFct[INS[(gw/Sqrt[2]) (bar[nu] ** ga[LI[i[1]]] ** PL ** el) Wp[LI[i[1]]]],
       {{Wp, LI[i[2]], k1}, {bar[nu], None, k2}, {el, None, k3}}],
    I (gw/Sqrt[2]) (ga[LI[i[2]]] ** PL),
    TestID -> "fr-W-vertex-INS"];
 
 (* pure vector coupling: no projector survives *)
 VerificationTest[
-   feynmanRule[ee (bar[el] ** ga[LI[i[1]]] ** el) AA[LI[i[1]]],
+   vertexFct[ee (bar[el] ** ga[LI[i[1]]] ** el) AA[LI[i[1]]],
       {{AA, LI[i[2]], k1}, {bar[el], None, k2}, {el, None, k3}}],
    I ee NC[ga[LI[i[2]]]],
    TestID -> "fr-QED-vertex"];
 
 (* general chiral Z coupling: keeps both projectors with their couplings *)
 VerificationTest[
-   Expand[feynmanRule[gz (bar[el] ** ga[LI[i[1]]] ** (gL PL + gR PR) ** el) Zb[LI[i[1]]],
+   Expand[vertexFct[gz (bar[el] ** ga[LI[i[1]]] ** (gL PL + gR PR) ** el) Zb[LI[i[1]]],
       {{Zb, LI[i[2]], k1}, {bar[el], None, k2}, {el, None, k3}}]],
    Expand[I gz (gL (ga[LI[i[2]]] ** PL) + gR (ga[LI[i[2]]] ** PR))],
    TestID -> "fr-Z-vertex"];
@@ -1032,13 +1032,13 @@ VerificationTest[
    4 INS[g[LI[i[1]], LI[i[2]]]],
    TestID -> "trace-INS-aware"];
 
-(* ---- end-to-end: feynmanRule with two legs -> Propagator -> inversion ---- *)
+(* ---- end-to-end: Propagator with two legs -> inversion ---- *)
 (* L = i elbar gamma^mu d_mu el - mEl elbar el  inverts to the Dirac        *)
 (* propagator; the result must carry no leftover INS or trace wrappers.     *)
 VerificationTest[
    Module[{L, B},
       L = I bar[el] ** ga[LI[i[1]]] ** d[LI[i[1]]][el] - mEl bar[el] ** el;
-      B = feynmanRule[L, {{bar[el], None, q1}, {el, None, q2}}];
+      B = Propagator[L, {{bar[el], None, q1}, {el, None, q2}}];
       {FreeQ[B, INS], FreeQ[B, traceDispatch],
        Simplify[B + I (mEl - NC[ga[LI[i[1]]]] q1[LI[i[1]]])/(mEl^2 - Sq[q1])]}],
    {True, True, 0},

@@ -663,22 +663,22 @@ feynruleMap[{{HH, None, p1}}] = I dtFJ; (* not really dtFJ, this is universal ->
 
 (* W+ W- *)
 feynruleMap[{{Wp, LI[i[1]], p1}, {Wm, LI[i[2]], p2}}] =
-  I ( (-g[LI[i[1]], LI[i[2]]] Sq[p1] + p1[LI[i[1]]] p1[LI[i[2]]]) dZW
+  I ( (-g[LI[i[1]], LI[i[2]]] p1[LI[i[3]]] p1[LI[i[3]]] + p1[LI[i[1]]] p1[LI[i[2]]]) dZW
       + g[LI[i[1]], LI[i[2]]] (dZW MW^2 + dMW2 - ee MW/(sw MH^2) dtFJ) );
 
 (* Z Z *)
 feynruleMap[{{Zb, LI[i[1]], p1}, {Zb, LI[i[2]], p2}}] =
-  I ( (-g[LI[i[1]], LI[i[2]]] Sq[p1] + p1[LI[i[1]]] p1[LI[i[2]]]) dZZZ
+  I ( (-g[LI[i[1]], LI[i[2]]] p1[LI[i[3]]] p1[LI[i[3]]] + p1[LI[i[1]]] p1[LI[i[2]]]) dZZZ
       + g[LI[i[1]], LI[i[2]]] (dZZZ MZ^2 + dMZ2 - ee MZ/(sw cw MH^2) dtFJ) );
 
 (* A Z *)
 feynruleMap[{{AA, LI[i[1]], p1}, {Zb, LI[i[2]], p2}}] =
-  I ( (-g[LI[i[1]], LI[i[2]]] Sq[p1] + p1[LI[i[1]]] p1[LI[i[2]]]) (1/2 dZAZ + 1/2 dZZA)
+  I ( (-g[LI[i[1]], LI[i[2]]] p1[LI[i[3]]] p1[LI[i[3]]] + p1[LI[i[1]]] p1[LI[i[2]]]) (1/2 dZAZ + 1/2 dZZA)
       + g[LI[i[1]], LI[i[2]]] (1/2 dZZA MZ^2) );
 
 (* A A *)
 feynruleMap[{{AA, LI[i[1]], p1}, {AA, LI[i[2]], p2}}] =
-  I ( (-g[LI[i[1]], LI[i[2]]] Sq[p1] + p1[LI[i[1]]] p1[LI[i[2]]]) dZAA );
+  I ( (-g[LI[i[1]], LI[i[2]]] p1[LI[i[3]]] p1[LI[i[3]]] + p1[LI[i[1]]] p1[LI[i[2]]]) dZAA );
 
 (* ---- V S counterterm :  i k_m C ------------------------------------ *)
 
@@ -703,10 +703,12 @@ feynruleMap[{{AA, LI[i[1]], p1}, {chi, None, p2}}] =
      I (1/2) dZZA MZ );
 
 (* ---- S S counterterm :  i[C1 k^2 - C2] ----------------------------- *)
+(* k^2 written as p1[LI[i[1]]] p1[LI[i[1]]] (not Sq[p1]) so that       *)
+(* canonical can match the dummy LI index against the computed result.   *)
 
 (* H H *)
 feynruleMap[{{HH, None, p1}, {HH, None, p2}}] =
-  I ( dZH Sq[p1] - (dZH MH^2 + dMH2 - 3 ee/(2 sw MW) dtFJ) );
+  I ( dZH p1[LI[i[1]]] p1[LI[i[1]]] - (dZH MH^2 + dMH2 - 3 ee/(2 sw MW) dtFJ) );
 
 (* chi chi *)
 feynruleMap[{{chi, None, p1}, {chi, None, p2}}] =

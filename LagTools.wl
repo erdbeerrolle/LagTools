@@ -523,7 +523,17 @@ functionalD[expr_, legs_] := Module[{fields, inds, terms, terms2,tot},
 ExplMassMat[e_] := e;
 RemoveINS[e_] := e //. {HoldPattern[INS[a_]] -> a};
 
-vertexFct[l_, legs_] := Expand[I (*recombineProjectors @*) RemoveINS @ Expand @ FullSimplify @ canonical @ diracSimplify @ contract @ functionalD[RemoveINS@l, legs]];
+ReleaseHoldFull[e_] := e //. HoldPattern[Hold[a_]] :> a;
+
+(* helper *)
+iVertexFct[l_, legs_] := Expand[I (*recombineProjectors @*) RemoveINS @ Expand @ FullSimplify @ canonical @ diracSimplify @ contract @ functionalD[RemoveINS@l, legs]];
+
+(* vertexFct: user-facing renormalized vertex. *)
+vertexFct[l_, legs_] := ReleaseHoldFull[iVertexFct[l,legs]] /. alpha -> 1;
+
+(* vertexCt: O(alpha^1) part of the two-point vertex function (2-point counterterm). *)
+vertexCt[l_, legs_] :=
+   SeriesCoefficient[ReleaseHoldFull[iVertexFct[l, legs]], {alpha, 0, 1}];
 
 (* =================================================================== *)
 (*  Dirac trace for pure gamma chains (D = 4 spacetime dimensions)     *)
@@ -589,17 +599,16 @@ Propagator[l_, legs : {{_, _, _}, {_, _, _}}] := Module[
    t1 = legFieldType[legs[[1]]];
    t2 = legFieldType[legs[[2]]];
    If[t1 =!= t2, Message[Propagator::legtype, t1, t2]; Return[$Failed]];
-   A = (ExplMassMat @ recombineProjectors @ vertexFct[l, legs]) /. p2[a___] :> -p1[a];   (* p2 = -p1 *)
+   (* propagators are tree objects: release held prefactors, then zero alpha. *)
+   A = (ExplMassMat @ recombineProjectors @
+         iVertexFct[ReleaseHoldFull[l] /. alpha -> 0, legs]) /.
+        p2[a___] :> -p1[a];   (* p2 = -p1 *)
    (* the open internal (flavour/colour) leg indices, used by the fermion    *)
    (* inversion to factor the diagonal Kronecker delta out; {} if the legs    *)
    (* carry no internal index (e.g. index None).                             *)
    intIdx = {legs[[1, 2]], legs[[2, 2]]};
    intIdx = If[MatchQ[intIdx, {(FI | GI)[_], (FI | GI)[_]}], intIdx, {}];
    -invertTwoPoint[A, p1, Sq[p1], t1, intIdx]];
-
-(* feynmanRule dispatches: two external legs -> propagator, else vertex. *)
-feynmanRule[l_, legs_] :=
-   If[Length[legs] === 2, Propagator[l, legs], vertexFct[l, legs]];
 
 (* =================================================================== *)
 (*  Gauge multiplet infrastructure                                     *)
