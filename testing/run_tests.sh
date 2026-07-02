@@ -15,7 +15,7 @@ cd "$(dirname "$0")/.."
 # a plain TestReport kernel.
 #
 # After the run only failures are printed (TestID, input, expected, got).
-FILES=("${@:-Tests.wlt}")
+FILES=("${@:-testing/Tests.wlt}")
 
 WORK=$(mktemp -d)
 IS_TTY=0

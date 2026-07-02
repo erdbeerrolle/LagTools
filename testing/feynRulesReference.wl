@@ -703,8 +703,6 @@ feynruleMap[{{AA, LI[i[1]], p1}, {chi, None, p2}}] =
      I (1/2) dZZA MZ );
 
 (* ---- S S counterterm :  i[C1 k^2 - C2] ----------------------------- *)
-(* k^2 written as p1[LI[i[1]]] p1[LI[i[1]]] (not Sq[p1]) so that       *)
-(* canonical can match the dummy LI index against the computed result.   *)
 
 (* H H *)
 feynruleMap[{{HH, None, p1}, {HH, None, p2}}] =

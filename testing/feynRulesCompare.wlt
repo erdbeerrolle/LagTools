@@ -3,7 +3,7 @@
 (*  EWSM Lagrangian against the literature reference.                     *)
 (* ====================================================================== *)
 
-Get[FileNameJoin[{DirectoryName[$TestFileName], "EWSMLagrangian.wl"}]];
+Get[FileNameJoin[{ParentDirectory[DirectoryName[$TestFileName]], "EWSMLagrangian.wl"}]];
 Get[FileNameJoin[{DirectoryName[$TestFileName], "feynRulesReference.wl"}]];
 
 (* ---- comparison helpers (ported from feynRulesView.nb) --------------- *)

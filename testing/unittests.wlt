@@ -11,7 +11,7 @@
 (*  fields/couplings, so it is self-contained.                         *)
 (* ------------------------------------------------------------------ *)
 
-Get[FileNameJoin[{DirectoryName[$TestFileName], "LagTools.wl"}]];
+Get[FileNameJoin[{ParentDirectory[DirectoryName[$TestFileName]], "LagTools.wl"}]];
 
 (* ---- fixtures: declare fields + real couplings once ---- *)
 DeclareBoson[Wp]; DeclareBoson[Wm]; DeclareBoson[Zb]; DeclareBoson[AA];
