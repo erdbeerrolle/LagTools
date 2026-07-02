@@ -218,11 +218,14 @@ VerificationTest[
 (* 8. renorm substitution                                             *)
 (* ================================================================== *)
 
-(* Substitute only the right-handed leg el (no bar) so the test isolates    *)
-(* the el -> (1+dZL)PL el + (1+dZR)PR el rule and the chain distribution.    *)
+(* renormFlavor[f, zLfn, zRfn] splits a fermion leg into its chiral halves,   *)
+(* wraps each counterterm piece in INS, and increments the flavor index       *)
+(* (i[2] -> i[3]) so the summed-over flavor is distinct from the external one.*)
 VerificationTest[
-   recombineProjectors[diracSimplify[(ga[LI[i[1]]] ** el) /. renorm[el, dZL, dZR]]] // Expand,
-   NC[ga[LI[i[1]]],el]+dZL NC[ga[LI[i[1]]],PL,el]+dZR NC[ga[LI[i[1]]],PR,el],
+   el[FI[i[2]]] /. renormFlavor[el, dZeL, dZeR],
+   el[FI[i[2]]]
+     + INS[dZeL[FI[i[2]], FI[i[3]]] NC[PL, el[FI[i[3]]]]]
+     + INS[dZeR[FI[i[2]], FI[i[3]]] NC[PR, el[FI[i[3]]]]],
    TestID -> "renorm-el-leg"];
 
 (* ================================================================== *)
