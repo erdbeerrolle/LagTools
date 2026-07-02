@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 # comes from a second, concurrent kernel that stubs out VerificationTest
 # with a counting no-op and Gets the file (test bodies stay unevaluated
 # because VerificationTest is HoldAllComplete). The tests themselves run in
-# a plain TestReport kernel, exactly as before.
+# a plain TestReport kernel.
 #
 # After the run only failures are printed (TestID, input, expected, got).
 FILES=("${@:-Tests.wlt}")
@@ -82,7 +82,7 @@ EOF
 
 # ---- live display ----------------------------------------------------------
 
-BLOCKS_PER_LINE=40
+BLOCKS_PER_LINE=50
 lines_drawn=0
 
 draw() {
@@ -104,7 +104,7 @@ draw() {
     done
     buf+=$(printf '%02d:%02d  %d/%d' $((elapsed / 60)) $((elapsed % 60)) "$done" "$total")
   else
-    buf+=$(printf '%02d:%02d  %d/?' $((elapsed / 60)) $((elapsed % 60)) "$done")
+    buf+=$(printf '%02d:%02d  Loading dependencies...' $((elapsed / 60)) $((elapsed % 60)))
   fi
   buf+=$'\033[K\n'
   (( nlines++ ))
