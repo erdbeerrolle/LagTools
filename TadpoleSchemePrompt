@@ -1,0 +1,9 @@
+I want to add support for different tadpole renomalization schemes to EWSMLagrangian.wl.
+
+1) Fleischer-Jegerlehner Tadpole scheme (FJTS)
+Tadpole renormalization parameter: dtFJ
+Renormlization prescription: HH :> HH - dtFJ / MH^2
+
+2) Parameter -renormalized tadpole scheme (PRTS)
+Tadpole renormalization parameter: dtPR
+This scheme is a bit less straightforward to implement because we need to make the trassformation before //toPhysical
