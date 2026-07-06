@@ -18,7 +18,7 @@ normalizationRpl = {
    eps -> 0
    };
 
-tadpoleCtZero = {dtFJ -> 0, dtPR -> 0, tpc->0};
+(*tadpoleCtZero = {dtFJ -> 0, dtPR -> 0, tpc->0};*)
 
 momentumCons[legs_] := Module[{a, momenta},
    momenta = (#[[3]] &) /@ legs;
@@ -28,7 +28,7 @@ momentumCons[legs_] := Module[{a, momenta},
 compareDiff[comp_, legs_, map_, canIdc_ : {LI, FI, GI}, postFn_ : (#&)] :=      
    Module[{ref, normRepl},
       ref = map[legs] /. expandSC;
-      normRepl = Join[normalizationRpl, momentumCons[legs], tadpoleCtZero];
+      normRepl = Join[normalizationRpl, momentumCons[legs]]; (*, tadpoleCtZero]; *)
       FullSimplify @ postFn @ canonical[ref - comp //.normRepl, canIdc]
    ];
 
@@ -41,7 +41,7 @@ legLabel[legs_]   := StringRiffle[fieldTag /@ (First /@ legs), "-"];
 noGhostQ[legs_] := FreeQ[legs, Alternatives @@ ghostFields];*)
 
 (* ====================================================================== *)
-(*  Renormalized 3/4-point vertices                                       *)
+(*  Renormalized 3/4-point vertices and tadpole                           *)
 (* ====================================================================== *)
 
 Do[
@@ -50,7 +50,7 @@ Do[
          compareDiff[vertexFct[Lren, lg], lg, feynruleMap],
          0,
          TestID -> "vertex-" <> legLabel[lg]]],
-   {k, Select[feynRuleLegsLst, Length[#] >= 3 &]}];
+   {k, Select[feynRuleLegsLst, Length[#] =!= 2 &]}];
 
 (* ====================================================================== *)
 (*  Propagators (unrenormalized)                                          *)
@@ -60,7 +60,7 @@ Do[
    With[{lg = k},
       VerificationTest[
          compareDiff[
-            Propagator[Ltotal, lg], 
+            Propagator[Lren, lg], 
             lg, 
             propagatorMap, 
             {LI}, 

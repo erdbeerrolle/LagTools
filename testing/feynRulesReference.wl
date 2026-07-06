@@ -657,7 +657,7 @@ propagatorMap[{{bar[dq], FI[i[2]], p1}, {dq, FI[i[3]], p2}}] =
 (* ===================================================================== *)
 
 (* ---- tadpole :  one-point Higgs vertex,  i dt --------------------- *)
-feynruleMap[{{HH, None, p1}}] = I dtFJ; (* not really dtFJ, this is universal -> introduce a third parameter? *)
+feynruleMap[{{HH, None, p1}}] = I (dtFJ + dtPR);
 
 (* ---- V V counterterm :  i[(-g_mn k^2 + k_m k_n) C1 + g_mn C2] ------- *)
 
@@ -710,11 +710,11 @@ feynruleMap[{{HH, None, p1}, {HH, None, p2}}] =
 
 (* chi chi *)
 feynruleMap[{{chi, None, p1}, {chi, None, p2}}] =
-  I ( - (- ee/(2 sw MW) dtFJ) );
+  I ( - (- ee/(2 sw MW) (dtFJ + dtPR)) );
 
 (* phi phi *)
 feynruleMap[{{phi, None, p1}, {phim, None, p2}}] =
-  I ( - (- ee/(2 sw MW) dtFJ) );
+  I ( - (- ee/(2 sw MW) (dtFJ + dtPR)) );
 
 (* ---- F Fbar counterterm : ------------------------------------------ *)
 (*   i[ CL k-slash w_- + CR k-slash w_+ - CS^- w_- - CS^+ w_+ ]          *)

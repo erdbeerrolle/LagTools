@@ -364,6 +364,19 @@ LClassPhys = Simplify/@(LClassFull // toPhysical // Expand // canonical //
    RemoveINS);
 Ltotal = LClassPhys + Lghost + Lfix;
 
+
+(* ====================================================================== *)
+(*  Tadpole renormalization                                               *)
+(* ====================================================================== *)
+(* ordering parameter for 1-loop expansion *)
+DeclareRealParam[alpha, "\[Alpha]"];
+
+DeclareRealParam[dtFJ, Superscript["\[Delta]t", "FJTS"]];
+DeclareRealParam[dtPR, Superscript["\[Delta]t", "PRTS"]];
+
+FJTSsubs = {HH :> HH - alpha * dtFJ / MH^2};
+PRTSsubs = {tpc :> alpha * dtPR};
+
 (* ====================================================================== *)
 (*  RENORMALIZATION TRAFO (OS scheme, DD Sect. 3.1)                       *)
 (* ====================================================================== *)
@@ -390,9 +403,6 @@ DeclareComplexParam[dZdR, Subsuperscript["\[Delta]Z", "d", "R"]];
 DeclareComplexParam[dZnuL, Subsuperscript["\[Delta]Z", "\[Nu]", "L"]];
 DeclareComplexParam[dZnuR, Subsuperscript["\[Delta]Z", "\[Nu]", "R"]];
 DeclareComplexParam[dV, "\[Delta]V"];
-
-(* ordering parameter for 1-loop expansion *)
-DeclareRealParam[alpha, "\[Alpha]"];
 
 SetAttributes[dMdiagl, Orderless];
 SetAttributes[dMdiagu, Orderless];
@@ -428,13 +438,12 @@ renormParams = {
 (* ======================================================================== *)
 
 (* perform renormalizatin with Hold around sums of renormalization constants *)
-renTermHold[e_] := Module[{ren, a},
-   ren = 
-    Series[e /. Join[renormFields, renormParams], {alpha, 0, 1}] // 
-     Normal;
-   HoldFieldPrefacts@ren];
+renTermHold[e_] := Module[{sub, ren, a},
+   sub = (e /. Join[FJTSsubs, PRTSsubs]) /. Join[renormFields, renormParams];
+   ren = Series[sub, {alpha, 0, 1}] // Normal;
+   HoldFieldPrefacts @ ren];
 
-renormalize[e_] := diracSimplify@HoldFieldPrefacts@Total@(renTermHold /@ SumToList[e]);
+renormalize[e_] := diracSimplify @ HoldFieldPrefacts @ Total @ (renTermHold /@ SumToList[e]);
 
 (* full 1-loop ren lag *)
-Lren = renormalize@LClassPhys + Lghost + Lfix
+Lren = renormalize @ LClassPhys + Lghost + Lfix
