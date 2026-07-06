@@ -18,7 +18,7 @@ normalizationRpl = {
    eps -> 0
    };
 
-tadpoleCtZero = {dtFJ -> 0, dtPR -> 0};
+tadpoleCtZero = {dtFJ -> 0, dtPR -> 0, tpc->0};
 
 momentumCons[legs_] := Module[{a, momenta},
    momenta = (#[[3]] &) /@ legs;
@@ -27,8 +27,8 @@ momentumCons[legs_] := Module[{a, momenta},
 
 compareDiff[comp_, legs_, map_, canIdc_ : {LI, FI, GI}, postFn_ : (#&)] :=      
    Module[{ref, normRepl},
-      ref = map[legs] /. Join[expandSC, tadpoleCtZero];
-      normRepl = Join[normalizationRpl, momentumCons[legs]];
+      ref = map[legs] /. expandSC;
+      normRepl = Join[normalizationRpl, momentumCons[legs], tadpoleCtZero];
       FullSimplify @ postFn @ canonical[ref - comp //.normRepl, canIdc]
    ];
 

@@ -747,6 +747,22 @@ ExplCovD[e_]      := e /. (Last /@ DownValues[CovDExpansion]);
 ExplFieldStr[e_]  := e /. (Last /@ DownValues[FieldStrExpansion]);
 
 (* =================================================================== *)
+(* helpers for manipulating the Lagrangian                             *)
+(* =================================================================== *)
+
+fieldAndIdxFact[expr_] :=
+  Times @@ Select[List @@ expr, ! (FreeQ[#, _?fieldQ] && indexFreeQ[#]) &];
+
+GetTerm[expr_, fieldFact_] :=
+  Total[Select[SumToList @ Expand @ expr, fieldAndIdxFact[#] === fieldFact &]];
+
+SumGroupByValues[expr_] :=
+  Total /@ (GroupBy[SumToList[expr], fieldAndIdxFact] // Values);
+HoldFieldPrefacts[e_] := 
+  Module[{a}, 
+   Total[(Factor@SumGroupByValues@Expand@e) /. {a_Plus -> Hold[a]}]];
+
+(* =================================================================== *)
 (*  Display formatting (notebook output)                               *)
 (* =================================================================== *)
 

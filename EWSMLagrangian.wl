@@ -162,6 +162,16 @@ LClassFull = LFermFull + LGaugeFull + LHiggsFull + LYukawaFull;
 
 
 (* ====================================================================== *)
+(* substitute mu2 and lam for tadpole constant and higgs mass             *)
+(* ====================================================================== *)
+DeclareRealParam[tpc, "t"]; (* tadpole constant *)
+
+lamMuSubs = Solve[
+   {GetTerm[LHiggsFull, HH^2] == -1/2 MH^2 HH^2,
+    GetTerm[LHiggsFull, HH]   == tpc HH},
+   {lam, mu2}][[1]] // Expand;
+
+(* ====================================================================== *)
 (* PHYSICAL BASIS (MASS EIGENSTATES)                                      *)
 (* ====================================================================== *)
 
@@ -176,12 +186,10 @@ gaugeFieldRotation = {
 paramSubs = {
   g2  -> ee / sw,
   g1  -> ee / cw,
-  v   -> 2 sw MW / ee, (* v = 2 MW / g2 *)
-  lam -> ee^2 MH^2 / (2 sw^2 MW^2), (* lam = 2 MH^2 /v^2 *)
-  mu2 -> MH^2 / 2
+  v   -> 2 sw MW / ee (* v = 2 MW / g2 *)
 };
 
-GaugeBasisChange[e_] := e //. Join[gaugeFieldRotation, paramSubs];
+GaugeBasisChange[e_] := (e //. lamMuSubs) //. Join[gaugeFieldRotation, paramSubs];
 
 (*  ---- Part II: Fermion mass basis  ----  *)
 
@@ -419,16 +427,7 @@ renormParams = {
 (*  1-LOOP RENORMALIZED LAGRANGIAN                                          *)
 (* ======================================================================== *)
 
-(* perform renormalizatin with Hold around sums of neormalization constants *)
-
-fieldAndIdxFact[expr_] := 
-  Times @@ 
-   Select[List @@ expr, ! (FreeQ[#, _?fieldQ] && indexFreeQ[#]) &];
-SumGroupByValues[expr_] := 
-  Total /@ (GroupBy[SumToList[expr], fieldAndIdxFact] // Values);
-HoldFieldPrefacts[e_] := 
-  Module[{a}, 
-   Total[(Factor@SumGroupByValues@Expand@e) /. {a_Plus -> Hold[a]}]];
+(* perform renormalizatin with Hold around sums of renormalization constants *)
 renTermHold[e_] := Module[{ren, a},
    ren = 
     Series[e /. Join[renormFields, renormParams], {alpha, 0, 1}] // 
