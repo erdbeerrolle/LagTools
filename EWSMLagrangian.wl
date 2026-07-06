@@ -364,22 +364,14 @@ LClassPhys = Simplify/@(LClassFull // toPhysical // Expand // canonical //
    RemoveINS);
 Ltotal = LClassPhys + Lghost + Lfix;
 
-
 (* ====================================================================== *)
-(*  Tadpole renormalization                                               *)
+(*  RENORMALIZATION TRAFO (OS scheme, DD Sect. 3.1)                       *)
 (* ====================================================================== *)
 (* ordering parameter for 1-loop expansion *)
 DeclareRealParam[alpha, "\[Alpha]"];
 
 DeclareRealParam[dtFJ, Superscript["\[Delta]t", "FJTS"]];
 DeclareRealParam[dtPR, Superscript["\[Delta]t", "PRTS"]];
-
-FJTSsubs = {HH :> HH - alpha * dtFJ / MH^2};
-PRTSsubs = {tpc :> alpha * dtPR};
-
-(* ====================================================================== *)
-(*  RENORMALIZATION TRAFO (OS scheme, DD Sect. 3.1)                       *)
-(* ====================================================================== *)
 
 DeclareRealParam[dZW, Subscript["\[Delta]Z", "W"]];
 DeclareRealParam[dZZZ, Subscript["\[Delta]Z", "ZZ"]];
@@ -408,6 +400,10 @@ SetAttributes[dMdiagl, Orderless];
 SetAttributes[dMdiagu, Orderless];
 SetAttributes[dMdiagd, Orderless];
 
+(* tadpole renormalization *)
+FJTSsubs = {HH :> HH - alpha * dtFJ / MH^2};
+PRTSsubs = {tpc :> alpha * dtPR};
+
 renormFields = Flatten[{
   renormBoson[Wp,   alpha dZW],
   renormBoson[Wm,   alpha dZW],
@@ -432,7 +428,6 @@ renormParams = {
   V[FI[a_], FI[b_]] :> V[FI[a], FI[b]] + alpha dV[FI[a], FI[b]]
 };
 
-
 (* ======================================================================== *)
 (*  1-LOOP RENORMALIZED LAGRANGIAN                                          *)
 (* ======================================================================== *)
@@ -446,4 +441,4 @@ renTermHold[e_] := Module[{sub, ren, a},
 renormalize[e_] := diracSimplify @ HoldFieldPrefacts @ Total @ (renTermHold /@ SumToList[e]);
 
 (* full 1-loop ren lag *)
-Lren = renormalize @ LClassPhys + Lghost + Lfix
+Lren = renormalize @ LClassPhys + Lghost + Lfix;
