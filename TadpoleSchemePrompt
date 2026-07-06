@@ -1,4 +1,6 @@
-I want to add support for different tadpole renomalization schemes to EWSMLagrangian.wl.
+I want to add support for different tadpole renomalization schemes to EWSMLagrangian.wl. Idea: Apply both the FJTS and the PRTS scheme. PRTS scheme result is then obtained by setting the ren const dtFJ for FJTS to zero and vice versa.
+
+Implementation:
 
 1) Fleischer-Jegerlehner Tadpole scheme (FJTS)
 Tadpole renormalization parameter: dtFJ
@@ -6,4 +8,31 @@ Renormlization prescription: HH :> HH - dtFJ / MH^2
 
 2) Parameter -renormalized tadpole scheme (PRTS)
 Tadpole renormalization parameter: dtPR
-This scheme is a bit less straightforward to implement because we need to make the trassformation before //toPhysical
+For this scheme we need to make a trasformation before/while applying toPhysical.
+Instead of 
+  lam -> ee^2 MH^2 / (2 sw^2 MW^2), (* lam = 2 MH^2 /v^2 *)
+  mu2 -> MH^2 / 2
+we need a transformation rule including dtPR. How to get this transformation rule is shown in the following prototype code:
+
+In[189]:= VHiggsFull=-LHiggs[[{1,2}]]//ExplGaugeMult//Expand
+eq1=GetTerm[VHiggsFull,HH^2]==1/2*MH^2*HH^2
+eq2=GetTerm[VHiggsFull,HH]==-dtPR HH
+Solve[{eq1,eq2},{lam,mu2}][[1]]//Expand
+Out[189]= ((\[Chi])^4 \[Lambda])/16+1/8 (\[Chi])^2 (H)^2 \[Lambda]+((H)^4 \[Lambda])/16-((\[Chi])^2 \[Mu]^2)/2-((H)^2 \[Mu]^2)/2+1/4 (\[Chi])^2 \[Lambda] \[Phi]^+ \[Phi]^-+1/4 (H)^2 \[Lambda] \[Phi]^+ \[Phi]^--\[Mu]^2 \[Phi]^+ \[Phi]^-+1/4 \[Lambda] (\[Phi]^+)^2 (\[Phi]^-)^2+1/4 (\[Chi])^2 H \[Lambda] v+1/4 (H)^3 \[Lambda] v-H \[Mu]^2 v+1/2 H \[Lambda] \[Phi]^+ \[Phi]^- v+1/8 (\[Chi])^2 \[Lambda] (v)^2+3/8 (H)^2 \[Lambda] (v)^2-(\[Mu]^2 (v)^2)/2+1/4 \[Lambda] \[Phi]^+ \[Phi]^- (v)^2+1/4 H \[Lambda] (v)^3+(\[Lambda] (v)^4)/16
+Out[190]= -(1/2) (H)^2 \[Mu]^2+3/8 (H)^2 \[Lambda] (v)^2==1/2 (H)^2 Subsuperscript[M, H, 2]
+Out[191]= -H \[Mu]^2 v+1/4 H \[Lambda] (v)^3==-dtPR H
+Out[192]= {\[Lambda]->(2 dtPR)/(v)^3+(2 Subsuperscript[M, H, 2])/(v)^2,\[Mu]^2->Subsuperscript[M, H, 2]/2+(3 dtPR)/(2 v)}
+
+This code uses a new helper function:
+GetTerm[expr_, fieldFact_] := 
+  Total[Select[SumToList@Expand@expr, 
+    fieldAndIdxFact[#] === fieldFact &]];
+This works only for scalar fields, which is all we need for now.
+
+
+I suggest that we split the toPhysical transformation into first the one shown here and then second 
+paramSubs = {
+  g2  -> ee / sw,
+  g1  -> ee / cw,
+  v   -> 2 sw MW / ee, (* v = 2 MW / g2 *)
+};
