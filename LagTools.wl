@@ -493,6 +493,7 @@ fdiffINS[{f_, _, _}, x_] := 0 /; fieldFreeQ[x, f];
 (* public API: select summands that contain the fields and wrap in INS to  *)
 (* resolve clash with the leg index           *)
 SumToList[e_] := If[Head[e] === Plus, List @@ e, {e}];
+ProdToList[e_] := If[Head[e] === Times, List @@ e, {e}];
 
 fdiff[lg: {f_, _, _}, e_] :=
   Total[fdiffINS[lg, INS[#]] & /@ Select[SumToList @ Expand @ e, ! fieldFreeQ[#, f] &]];
@@ -751,7 +752,7 @@ ExplFieldStr[e_]  := e /. (Last /@ DownValues[FieldStrExpansion]);
 (* =================================================================== *)
 
 fieldAndIdxFact[expr_] :=
-  Times @@ Select[List @@ expr, ! (FreeQ[#, _?fieldQ] && indexFreeQ[#]) &];
+  Times @@ Select[ProdToList @ expr, ! (FreeQ[#, _?fieldQ] && indexFreeQ[#]) &];
 
 GetTerm[expr_, fieldFact_] :=
   Total[Select[SumToList @ Expand @ expr, fieldAndIdxFact[#] === fieldFact &]];
